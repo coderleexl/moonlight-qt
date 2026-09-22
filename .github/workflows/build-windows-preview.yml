@@ -26,6 +26,8 @@ jobs:
       - name: Fetch pinned Sunshine source and Windows dependencies
         shell: bash
         run: |
+          # Nested upstream dependencies exceed the Windows legacy path limit.
+          git config --global core.longpaths true
           git submodule update --init third_party/sunshine
           git -C third_party/sunshine submodule update --init --recursive --depth 1 --jobs 4 \
             third-party/build-deps third-party/libdisplaydevice third-party/libvirtualhid \

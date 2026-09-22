@@ -11,9 +11,11 @@ FocusScope {
     readonly property bool running: SunshineManager.state === SunshineManager.Running
     ScrollView {
         id: scroll
+        objectName: "hostPageScroll"
         anchors.fill: parent
         anchors.margins: 24
         clip: true
+        rightPadding: ScrollBar.vertical.width + 8
         contentWidth: availableWidth
         ColumnLayout {
             width: scroll.availableWidth
@@ -158,21 +160,37 @@ FocusScope {
                     onClicked: SunshineManager.openLogs()
                 }
             }
-            TextArea {
-                objectName: "hostLog"
+            ScrollView {
+                id: logScroll
+                objectName: "hostLogScroll"
+                implicitWidth: 0
                 Layout.fillWidth: true
                 Layout.preferredHeight: 180
-                readOnly: true
-                selectByMouse: true
-                text: SunshineManager.logText
-                textFormat: TextEdit.PlainText
-                wrapMode: TextEdit.WrapAnywhere
-                font.pixelSize: 12
-                color: window.secondaryColor
+                Layout.minimumHeight: 180
+                Layout.maximumHeight: 180
+                contentWidth: availableWidth
+                clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AlwaysOn
                 background: Rectangle {
                     color: window.surfaceColor
                     radius: 8
                     border.color: window.borderColor
+                }
+                TextArea {
+                    objectName: "hostLog"
+                    readOnly: true
+                    selectByMouse: true
+                    text: SunshineManager.logText
+                    textFormat: TextEdit.PlainText
+                    wrapMode: TextEdit.WrapAnywhere
+                    font.pixelSize: 12
+                    color: window.secondaryColor
+                    leftPadding: 12
+                    rightPadding: 12 + logScroll.ScrollBar.vertical.width
+                    topPadding: 10
+                    bottomPadding: 10
+                    background: null
                 }
             }
         }

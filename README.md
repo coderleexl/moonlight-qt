@@ -4,7 +4,7 @@
 
 由 [@coderleexl](https://github.com/coderleexl) 维护的 Moonlight Qt 界面重构版本，面向远程办公并兼顾游戏串流，基于 [上游 Moonlight Qt](https://github.com/moonlight-stream/moonlight-qt)。
 
-[本仓库源码](https://github.com/coderleexl/moonlight-qt) · [问题反馈](https://github.com/coderleexl/moonlight-qt/issues)
+[下载 Windows 预览版](https://github.com/coderleexl/moonlight-qt/releases/tag/v6.1.0-desk-preview.1) · [本仓库源码](https://github.com/coderleexl/moonlight-qt) · [问题反馈](https://github.com/coderleexl/moonlight-qt/issues)
 
 ### 运行界面预览
 
@@ -38,7 +38,12 @@ open app/Moonlight.app
 
 ### Windows 独立测试版：Moonlight Desk Preview
 
-通过 [Windows Desk Preview 构建流程](https://github.com/coderleexl/moonlight-qt/actions/workflows/build-windows-preview.yml) 在 Windows x64 上编译 Moonlight 与固定版本的 Sunshine，生成单个 `MoonlightDeskPreview-Setup-x64.exe` 安装程序和免安装 ZIP。**需等该流程成功完成后，在 Artifacts 中下载 `MoonlightDeskPreview-Windows-x64`；源码仓库不包含已验证的 Windows 安装包。**
+在 [GitHub Releases](https://github.com/coderleexl/moonlight-qt/releases/tag/v6.1.0-desk-preview.1) 下载 Windows x64 预览版，选择一种即可，两者均包含从源码编译的 Sunshine：
+
+- **安装版（推荐）**：[MoonlightDeskPreview-Setup-x64.exe](https://github.com/coderleexl/moonlight-qt/releases/download/v6.1.0-desk-preview.1/MoonlightDeskPreview-Setup-x64.exe)，下载后直接安装。
+- **免安装版**：[MoonlightDeskPreview-x64.zip](https://github.com/coderleexl/moonlight-qt/releases/download/v6.1.0-desk-preview.1/MoonlightDeskPreview-x64.zip)，解压后运行 `MoonlightDeskPreview.exe`。
+
+安装包由 [Windows Desk Preview 构建流程](https://github.com/coderleexl/moonlight-qt/actions/workflows/build-windows-preview.yml) 生成。Actions 中单独的 `sunshine-preview-x64` 是构建中间产物，无需另行下载。
 
 测试版使用独立标识，可与原版共存：
 
@@ -51,6 +56,10 @@ open app/Moonlight.app
 | 安装与卸载 | 独立 AppId，仅当前用户，无需覆盖原版 |
 
 安装后在“本机”页面启动服务，按“配置与配对 → 添加本机 → 配对 → 连接桌面”测试。默认只监听本机。其他设备连接 Windows 时，先停止服务并关闭“仅本机测试”，重新启动后添加 `Windows 局域网 IP:48989`；必要时允许内置 Sunshine 通过 Windows 防火墙的专用网络。退出应用会停止内置服务。本版不自动安装 Sunshine 系统服务、驱动或开机启动项。
+
+**Windows 不会自动弹出配对输入框。** 在 Windows 预览版点击“配置与配对”，打开 `https://127.0.0.1:48990`，首次使用先设置并登录 Sunshine 管理账号。在另一台设备发起配对，保持 PIN 弹窗打开，将四位数字输入 Windows 管理网页的 PIN 页面并提交。`48989` 是客户端连接端口，`48990` 是管理网页端口。
+
+当前关闭客户端 PIN 弹窗不会取消主机上等待中的配对。重复点击可能返回 `409: A pairing session with this uniqueid already exists`；此时在 Windows 预览版停止并重新启动服务，保持“仅本机测试”关闭，再发起一次配对。原版 Sunshine 与预览版的配对记录独立，预览版需要重新配对。
 
 构建流程包含 Windows 进程管理测试、安装／卸载检查、客户端启动和 Sunshine Web 配置页启动检查；GPU 编解码、真实串流、锁屏／UAC 和手柄驱动需在目标电脑上实测。安装包尚未签名，可能出现 SmartScreen 提示。
 

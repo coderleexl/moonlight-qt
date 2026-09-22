@@ -32,7 +32,7 @@ jobs:
           git -C third_party/sunshine submodule update --init --recursive --depth 1 --jobs 4 \
             third-party/build-deps third-party/libdisplaydevice third-party/libvirtualhid \
             third-party/lizardbyte-common third-party/moonlight-common-c \
-            third-party/Simple-Web-Server third-party/nvapi
+            third-party/Simple-Web-Server third-party/nvapi third-party/ViGEmClient
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

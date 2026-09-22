@@ -20,8 +20,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
         with:
-          submodules: 'recursive'
           fetch-depth: 1
+
+      - name: Fetch client submodules
+        shell: bash
+        run: |
+          # Hosting is built by Windows Desk; client-only builds need these three submodules.
+          git submodule update --init --recursive --jobs 4 \
+            moonlight-common-c/moonlight-common-c qmdnsengine/qmdnsengine app/SDL_GameControllerDB
 
       - name: Setup environment
         run: |

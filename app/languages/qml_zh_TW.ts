@@ -1714,8 +1714,8 @@
     </message>
     <message>
         <location filename="../gui/HostView.qml" line="122"/>
-        <source>This preview stops hosting when Moonlight exits. Streaming this screen back to itself creates a mirror effect; use another device to check picture quality and input.</source>
-        <translation>此預覽版會在結束 Moonlight 時停止主機服務。本機串流會出現畫面重疊；畫質與輸入效果請使用另一台裝置驗證。</translation>
+        <source>Hosting stops when the app exits. Streaming this screen back to itself creates a mirror effect; use another device to check picture quality and input.</source>
+        <translation>結束應用程式時會停止主機服務。本機串流會出現畫面重疊；畫質與輸入效果請使用另一台裝置驗證。</translation>
     </message>
     <message>
         <location filename="../gui/HostView.qml" line="136"/>
@@ -1732,8 +1732,8 @@
         <translation>主機位址：%1</translation>
     </message>
     <message>
-        <source>For LAN connections on Windows, allow the bundled Sunshine through Windows Firewall on private networks. This preview runs while you are signed in; it does not install a system service.</source>
-        <translation>在 Windows 上使用區域網路連線時，請允許內建 Sunshine 通過 Windows 防火牆的私人網路。此預覽版在登入後執行，不會安裝系統服務。</translation>
+        <source>For LAN connections on Windows, allow the bundled Sunshine through Windows Firewall on private networks. Hosting runs while you are signed in; it does not install a system service.</source>
+        <translation>在 Windows 上使用區域網路連線時，請允許內建 Sunshine 通過 Windows 防火牆的私人網路。主機服務在登入後執行，不會安裝系統服務。</translation>
     </message>
 </context>
 <context>

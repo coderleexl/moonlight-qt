@@ -3,19 +3,20 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 $LogDir = Join-Path $RepoRoot 'build\preview-smoke'
 New-Item -ItemType Directory -Force $LogDir | Out-Null
-$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\MoonlightDeskPreview'
-$Installer = Join-Path $RepoRoot 'build\preview-installer\MoonlightDeskPreview-Setup-x64.exe'
+$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\Desk'
+$Installer = Join-Path $RepoRoot 'build\preview-installer\Desk-Setup-x64.exe'
 $OriginalKey = 'HKCU:\Software\Moonlight Game Streaming Project\Moonlight'
 $OriginalBefore = if (Test-Path $OriginalKey) { (Get-ItemProperty $OriginalKey | ConvertTo-Json -Depth 8) } else { '<absent>' }
 $Install = Start-Process $Installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$LogDir\install.log`"") -PassThru -Wait
 if ($Install.ExitCode -ne 0) { throw "Installer failed: $($Install.ExitCode)" }
 $UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{C2FD0142-DBA5-4D98-8EAC-82786E4671A1}_is1'
 if (-not (Test-Path $UninstallKey)) { throw 'Independent uninstall registration is missing' }
-$Exe = Join-Path $InstallDir 'MoonlightDeskPreview.exe'
+$Exe = Join-Path $InstallDir 'Desk.exe'
 if (-not (Test-Path $Exe)) { throw 'Preview executable not installed' }
 $Version = Start-Process $Exe -ArgumentList '--version' -WorkingDirectory $InstallDir -PassThru -Wait `
     -RedirectStandardOutput "$LogDir\version.txt" -RedirectStandardError "$LogDir\version-error.txt"
 if ($Version.ExitCode -ne 0) { throw 'Installed client failed to load its runtime dependencies' }
+if ((Get-Content "$LogDir\version.txt" -Raw) -notmatch '^Desk\s') { throw 'Installed client has the wrong application name' }
 
 $AppProcess = $null
 $HostProcess = $null
@@ -37,7 +38,7 @@ try {
     New-Item -ItemType Directory -Force "$ConfigDir\credentials" | Out-Null
     $Config = Join-Path $ConfigDir 'sunshine.conf'
     @"
-sunshine_name = Moonlight Desk Preview CI
+sunshine_name = Desk CI
 port = 48989
 bind_address = 127.0.0.1
 address_family = ipv4

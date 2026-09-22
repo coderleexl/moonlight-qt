@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
 #ifdef MOONLIGHT_HOST_PREVIEW
     QCoreApplication::setOrganizationName("coderleexl");
     QCoreApplication::setOrganizationDomain("github.com/coderleexl");
-    QCoreApplication::setApplicationName("MoonlightDeskPreview");
+    QCoreApplication::setApplicationName("Desk");
 #else
     QCoreApplication::setOrganizationName("Moonlight Game Streaming Project");
     QCoreApplication::setOrganizationDomain("moonlight-stream.com");

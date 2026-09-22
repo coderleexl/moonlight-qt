@@ -1,4 +1,4 @@
-name: Windows Desk Preview
+name: Windows Desk
 on:
   workflow_dispatch:
   push:
@@ -145,14 +145,14 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: success()
         with:
-          name: MoonlightDeskPreview-Windows-x64
+          name: Desk-Windows-x64
           path: build/preview-installer/*
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: MoonlightDeskPreview-test-logs
+          name: Desk-test-logs
           path: |
             build/preview-smoke/*.txt
             build/preview-smoke/*.log

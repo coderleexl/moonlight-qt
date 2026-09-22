@@ -13,7 +13,7 @@ include(../globaldefs.pri)
 # Independent identity for the integrated host preview, opt-in at build time.
 host_preview {
     DEFINES += MOONLIGHT_HOST_PREVIEW
-    win32: TARGET = MoonlightDeskPreview
+    win32: TARGET = Desk
 }
 
 # Precompile QML files to avoid writing qmlcache on portable versions.
@@ -559,8 +559,8 @@ win32 {
     QMAKE_TARGET_PRODUCT = Moonlight
     host_preview {
         QMAKE_TARGET_COMPANY = coderleexl
-        QMAKE_TARGET_DESCRIPTION = Moonlight Desk Preview
-        QMAKE_TARGET_PRODUCT = Moonlight Desk Preview
+        QMAKE_TARGET_DESCRIPTION = Desk
+        QMAKE_TARGET_PRODUCT = Desk
     }
 
     CONFIG -= embed_manifest_exe

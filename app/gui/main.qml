@@ -23,8 +23,8 @@ ApplicationWindow {
     height: 680
     minimumWidth: 640
     minimumHeight: 480
-    readonly property bool hostPreview: Qt.application.name === "MoonlightDeskPreview"
-    title: hostPreview ? "Moonlight Desk Preview" : "Moonlight"
+    readonly property bool hostPreview: Qt.application.name === "Desk"
+    title: hostPreview ? "Desk" : "Moonlight"
     font.pixelSize: 14
 
     // Session-only appearance preferences. Persistence belongs to P1.
@@ -238,7 +238,7 @@ ApplicationWindow {
                 spacing: 8
 
                 Label {
-                    text: window.compactNavigation ? "M" : window.hostPreview ? "Moonlight Desk" : "Moonlight"
+                    text: window.compactNavigation ? (window.hostPreview ? "D" : "M") : window.hostPreview ? "Desk" : "Moonlight"
                     font.pixelSize: window.compactNavigation ? 22 : 20
                     font.weight: Font.DemiBold
                     Layout.fillWidth: true

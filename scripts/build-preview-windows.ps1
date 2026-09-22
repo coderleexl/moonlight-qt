@@ -25,13 +25,13 @@ try {
     Invoke-Checked 'qmake' @((Join-Path $RepoRoot 'moonlight-qt.pro'), 'CONFIG+=host_preview')
     Invoke-Checked 'nmake' @('release')
 } finally { Pop-Location }
-$Exe = Join-Path $BuildRoot 'app\release\MoonlightDeskPreview.exe'
+$Exe = Join-Path $BuildRoot 'app\release\Desk.exe'
 Copy-Item $Exe $Payload
 Copy-Item (Join-Path $RepoRoot 'libs\windows\lib\x64\*.dll') $Payload
 Copy-Item (Join-Path $BuildRoot 'AntiHooking\release\AntiHooking.dll') $Payload
 Copy-Item (Join-Path $RepoRoot 'app\SDL_GameControllerDB\gamecontrollerdb.txt') $Payload
 Invoke-Checked 'windeployqt' @('--release', '--dir', $Payload, '--qmldir', (Join-Path $RepoRoot 'app\gui'),
-    '--no-opengl-sw', '--no-compiler-runtime', '--no-sql', '--no-ffmpeg', (Join-Path $Payload 'MoonlightDeskPreview.exe'))
+    '--no-opengl-sw', '--no-compiler-runtime', '--no-sql', '--no-ffmpeg', (Join-Path $Payload 'Desk.exe'))
 # App-local MSVC runtime avoids modifying the machine's shared runtime installation.
 $Runtime = Get-ChildItem (Join-Path $env:VCToolsRedistDir 'x64\Microsoft.VC*.CRT') -Directory | Select-Object -First 1
 if (-not $Runtime) { throw 'MSVC x64 runtime DLLs were not found' }
@@ -50,5 +50,5 @@ if (-not (Test-Path $Compiler)) { throw 'Install Inno Setup 6 before packaging' 
 $Version = (Get-Content (Join-Path $RepoRoot 'app\version.txt') -Raw).Trim()
 Invoke-Checked $Compiler @("/DPayloadDir=$Payload", "/DOutputDir=$Output", "/DAppVersion=$Version",
     (Join-Path $RepoRoot 'packaging\windows\preview.iss'))
-Compress-Archive -Path "$Payload\*" -DestinationPath (Join-Path $Output 'MoonlightDeskPreview-x64.zip') -Force
+Compress-Archive -Path "$Payload\*" -DestinationPath (Join-Path $Output 'Desk-x64.zip') -Force
 Get-ChildItem $Output -File | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize

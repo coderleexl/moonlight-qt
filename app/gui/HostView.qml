@@ -125,7 +125,7 @@ FocusScope {
             }
             Label {
                 visible: !SunshineManager.needsMacPermissions
-                text: qsTr("For LAN connections on Windows, allow the bundled Sunshine through Windows Firewall on private networks. This preview runs while you are signed in; it does not install a system service.")
+                text: qsTr("For LAN connections on Windows, allow the bundled Sunshine through Windows Firewall on private networks. Hosting runs while you are signed in; it does not install a system service.")
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 color: window.secondaryColor
@@ -137,7 +137,7 @@ FocusScope {
                 color: window.secondaryColor
             }
             Label {
-                text: qsTr("This preview stops hosting when Moonlight exits. Streaming this screen back to itself creates a mirror effect; use another device to check picture quality and input.")
+                text: qsTr("Hosting stops when the app exits. Streaming this screen back to itself creates a mirror effect; use another device to check picture quality and input.")
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 color: window.secondaryColor

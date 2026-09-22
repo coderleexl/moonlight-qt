@@ -2,31 +2,50 @@ import QtQuick 2.0
 import QtQuick.Controls 2.2
 
 ItemDelegate {
-    property GridView grid
+    // Both GridView and ListView expose currentItem/currentIndex.
+    property var grid
+    property bool listNavigation: false
+    activeFocusOnTab: true
+    onActiveFocusChanged: {
+        if (activeFocus && grid)
+            grid.currentIndex = index;
+    }
 
-    highlighted: grid.activeFocus && grid.currentItem === this
+    highlighted: (grid.activeFocus || activeFocus) && grid.currentItem === this
 
     Keys.onLeftPressed: {
-        grid.moveCurrentIndexLeft()
+        if (!listNavigation)
+            grid.moveCurrentIndexLeft();
+        else
+            event.accepted = false;
     }
     Keys.onRightPressed: {
-        grid.moveCurrentIndexRight()
+        if (!listNavigation)
+            grid.moveCurrentIndexRight();
+        else
+            event.accepted = false;
     }
     Keys.onDownPressed: {
-        grid.moveCurrentIndexDown()
+        if (listNavigation && grid.incrementCurrentIndex)
+            grid.incrementCurrentIndex();
+        else
+            grid.moveCurrentIndexDown();
     }
     Keys.onUpPressed: {
-        grid.moveCurrentIndexUp()
+        if (listNavigation && grid.decrementCurrentIndex)
+            grid.decrementCurrentIndex();
+        else
+            grid.moveCurrentIndexUp();
 
         // If we've reached the top of the grid, move focus to the toolbar
         if (grid.currentItem === this) {
-            nextItemInFocusChain(false).forceActiveFocus(Qt.TabFocus)
+            settingsButton.forceActiveFocus(Qt.TabFocusReason);
         }
     }
     Keys.onReturnPressed: {
-        clicked()
+        clicked();
     }
     Keys.onEnterPressed: {
-        clicked()
+        clicked();
     }
 }

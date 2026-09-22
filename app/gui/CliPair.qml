@@ -48,18 +48,22 @@ Item {
 
     Row {
         anchors.centerIn: parent
-        spacing: 5
+        width: Math.min(640, parent.width - 48)
+        spacing: 16
         id: stageIndicator
 
         BusyIndicator {
             id: stageSpinner
+            width: 48
+            height: 48
             running: visible
         }
 
         Label {
             id: stageLabel
-            height: stageSpinner.height
-            font.pointSize: 20
+            width: parent.width - stageSpinner.width - parent.spacing
+            height: Math.max(stageSpinner.height, implicitHeight)
+            font.pixelSize: 20
             verticalAlignment: Text.AlignVCenter
 
             wrapMode: Text.Wrap

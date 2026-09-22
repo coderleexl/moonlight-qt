@@ -47,6 +47,18 @@ Session* AppModel::createSessionForApp(int appIndex)
     return new Session(m_Computer, app);
 }
 
+int AppModel::getDesktopAppIndex()
+{
+    // Hosts expose Desktop as an ordinary app, with no stable app ID or type flag.
+    // Never substitute a configured direct-launch game when it is absent.
+    for (int i = 0; i < m_VisibleApps.count(); i++) {
+        if (m_VisibleApps[i].name.trimmed().compare(QStringLiteral("Desktop"), Qt::CaseInsensitive) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int AppModel::getDirectLaunchAppIndex()
 {
     for (int i = 0; i < m_VisibleApps.count(); i++) {

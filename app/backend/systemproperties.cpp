@@ -140,6 +140,9 @@ void SystemProperties::updateDecoderProperties(bool hasHardwareAcceleration, boo
         emit supportsHdrChanged();
     }
 
+    decoderInfoReady = true;
+    emit decoderInfoReadyChanged();
+
     SDL_DestroyWindow(testWindow);
     testWindow = nullptr;
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
@@ -224,6 +227,7 @@ void SystemProperties::refreshDisplays()
         return;
     }
 
+    QVariantList displays;
     monitorNativeResolutions.clear();
     monitorSafeAreaResolutions.clear();
     monitorRefreshRates.clear();
@@ -261,6 +265,13 @@ void SystemProperties::refreshDisplays()
                 }
             }
 
+            displays.append(QVariantMap{
+                {QStringLiteral("name"), QString::fromUtf8(SDL_GetDisplayName(displayIndex))},
+                {QStringLiteral("width"), desktopMode.w},
+                {QStringLiteral("height"), desktopMode.h},
+                {QStringLiteral("refreshRate"), bestMode.refresh_rate}
+            });
+
             // Try to normalize values around our our standard refresh rates.
             // Some displays/OSes report values that are slightly off.
             if (bestMode.refresh_rate >= 58 && bestMode.refresh_rate <= 62) {
@@ -276,4 +287,8 @@ void SystemProperties::refreshDisplays()
     }
 
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
+    if (displayCapabilities != displays) {
+        displayCapabilities = displays;
+        emit displayCapabilitiesChanged();
+    }
 }

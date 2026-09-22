@@ -5,54 +5,42 @@ import ComputerManager 1.0
 import Session 1.0
 
 Item {
+    property string stageText: qsTr("Establishing connection to PC...")
     function onSearchingComputer() {
-        stageLabel.text = qsTr("Establishing connection to PC...")
+        connectionStatus.text = qsTr("Establishing connection to PC...");
     }
 
     function onQuittingApp() {
-        stageLabel.text = qsTr("Quitting app...")
+        connectionStatus.text = qsTr("Quitting app...");
     }
 
     function onFailure(message) {
-        errorDialog.text = message
-        errorDialog.open()
+        errorDialog.text = message;
+        errorDialog.open();
     }
 
     StackView.onActivated: {
         if (!launcher.isExecuted()) {
-            toolBar.visible = false
-            launcher.searchingComputer.connect(onSearchingComputer)
-            launcher.quittingApp.connect(onQuittingApp)
-            launcher.failed.connect(onFailure)
-            launcher.execute(ComputerManager)
+            toolBar.visible = false;
+            launcher.searchingComputer.connect(onSearchingComputer);
+            launcher.quittingApp.connect(onQuittingApp);
+            launcher.failed.connect(onFailure);
+            launcher.execute(ComputerManager);
         }
     }
 
-    Row {
-        anchors.centerIn: parent
-        spacing: 5
-
-        BusyIndicator {
-            id: stageSpinner
-            running: visible
-        }
-
-        Label {
-            id: stageLabel
-            height: stageSpinner.height
-            text: stageText
-            font.pointSize: 20
-            verticalAlignment: Text.AlignVCenter
-
-            wrapMode: Text.Wrap
-        }
+    ConnectionStatus {
+        id: connectionStatus
+        anchors.fill: parent
+        text: stageText
+        busy: true
     }
 
     ErrorMessageDialog {
         id: errorDialog
 
         onClosed: {
-            Qt.quit()
+            Qt.quit();
         }
     }
 }

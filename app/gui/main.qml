@@ -11,147 +11,124 @@ import SystemProperties 1.0
 import SdlGamepadKeyNavigation 1.0
 
 ApplicationWindow {
+    id: window
     property bool pollingActive: false
 
     // Set by SettingsView to force the back operation to pop all
     // pages except the initial view. This is required when doing
     // a retranslate() because AppView breaks for some reason.
     property bool clearOnBack: false
+    width: 1100
+    height: 680
+    minimumWidth: 640
+    minimumHeight: 480
+    title: "Moonlight"
+    font.pixelSize: 14
 
-    id: window
-    width: 1280
-    height: 600
+    // Session-only appearance preferences. Persistence belongs to P1.
+    property bool darkTheme: false
+    readonly property bool compactNavigation: width < 860
+    readonly property color pageColor: darkTheme ? "#1F1F1F" : "#F5F7FA"
+    readonly property color sidebarColor: darkTheme ? "#181818" : "#F0F3F8"
+    readonly property color contentColor: darkTheme ? "#1F1F1F" : "#FFFFFF"
+    readonly property color surfaceColor: darkTheme ? "#292929" : "#FFFFFF"
+    readonly property color textColor: darkTheme ? "#CCCCCC" : "#17212B"
+    readonly property color secondaryColor: darkTheme ? "#A0A0A0" : "#657184"
+    readonly property color accentColor: darkTheme ? "#4DAAFC" : "#1677FF"
+    readonly property color selectionColor: darkTheme ? "#383838" : "#E7F0FF"
+    readonly property color borderColor: darkTheme ? "#3C3C3C" : "#E5E9F0"
+    readonly property color onlineColor: darkTheme ? "#66D89C" : "#167A48"
+    readonly property color warningColor: darkTheme ? "#F4C36A" : "#8D5D00"
+
+    readonly property color dividerColor: darkTheme ? "#2B2B2B" : "#E9EDF3"
+    readonly property color hoverColor: darkTheme ? "#333333" : "#F3F6FB"
+
+    Material.theme: darkTheme ? Material.Dark : Material.Light
+    Material.background: pageColor
+    Material.foreground: textColor
+    Material.accent: accentColor
+    Material.primary: sidebarColor
+    color: pageColor
+
+    function focusPage() {
+        if (stackView.currentItem)
+            stackView.currentItem.forceActiveFocus(Qt.TabFocusReason);
+    }
+
+    function showComputers() {
+        if (stackView.depth > 1)
+            stackView.pop(null);
+        clearOnBack = false;
+        focusPage();
+    }
 
     // This function runs prior to creation of the initial StackView item
     function doEarlyInit() {
-        // Override the background color to Material 2 colors for Qt 6.5+
-        // in order to improve contrast between GFE's placeholder box art
-        // and the background of the app grid.
-        if (SystemProperties.usesMaterial3Theme) {
-            Material.background = "#303030"
-        }
-
-        SdlGamepadKeyNavigation.enable()
+        SdlGamepadKeyNavigation.enable();
     }
 
     Component.onCompleted: {
         // Show the window according to the user's preferences
         if (SystemProperties.hasDesktopEnvironment) {
             if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_MAXIMIZED) {
-                window.showMaximized()
-            }
-            else if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_FULLSCREEN) {
-                window.showFullScreen()
-            }
-            else {
-                window.show()
+                window.showMaximized();
+            } else if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_FULLSCREEN) {
+                window.showFullScreen();
+            } else {
+                window.show();
             }
         } else {
-            window.showFullScreen()
+            window.showFullScreen();
         }
 
         // Display any modal dialogs for configuration warnings
         if (runConfigChecks) {
             if (SystemProperties.isWow64) {
-                wow64Dialog.open()
+                wow64Dialog.open();
             }
 
             // Hardware acceleration and unmapped gamepads are checked asynchronously
-            SystemProperties.hasHardwareAccelerationChanged.connect(hasHardwareAccelerationChanged)
-            SystemProperties.unmappedGamepadsChanged.connect(hasUnmappedGamepadsChanged)
-            SystemProperties.startAsyncLoad()
+            SystemProperties.hasHardwareAccelerationChanged.connect(hasHardwareAccelerationChanged);
+            SystemProperties.unmappedGamepadsChanged.connect(hasUnmappedGamepadsChanged);
+            SystemProperties.startAsyncLoad();
         }
     }
 
     function hasHardwareAccelerationChanged() {
         if (!SystemProperties.hasHardwareAcceleration && StreamingPreferences.videoDecoderSelection !== StreamingPreferences.VDS_FORCE_SOFTWARE) {
             if (SystemProperties.isRunningXWayland) {
-                xWaylandDialog.open()
-            }
-            else {
-                noHwDecoderDialog.open()
+                xWaylandDialog.open();
+            } else {
+                noHwDecoderDialog.open();
             }
         }
     }
 
     function hasUnmappedGamepadsChanged() {
         if (SystemProperties.unmappedGamepads) {
-            unmappedGamepadDialog.unmappedGamepads = SystemProperties.unmappedGamepads
-            unmappedGamepadDialog.open()
+            unmappedGamepadDialog.unmappedGamepads = SystemProperties.unmappedGamepads;
+            unmappedGamepadDialog.open();
         }
     }
 
-    // It would be better to use TextMetrics here, but it always lays out
-    // the text slightly more compactly than real Text does in ToolTip,
-    // causing unexpected line breaks to be inserted
-    Text {
-        id: tooltipTextLayoutHelper
+    Item {
+        id: tooltipScope
         visible: false
-        font: ToolTip.toolTip.font
-        text: ToolTip.toolTip.text
+        ToolTip.toolTip.contentWidth: Math.min(tooltipText.implicitWidth, 400, window.width - 32)
+        Text {
+            id: tooltipText
+            text: tooltipScope.ToolTip.toolTip.text
+            font: tooltipScope.ToolTip.toolTip.font
+        }
     }
-
-    // This configures the maximum width of the singleton attached QML ToolTip. If left unconstrained,
-    // it will never insert a line break and just extend on forever.
-    ToolTip.toolTip.contentWidth: Math.min(tooltipTextLayoutHelper.width, 400)
 
     function goBack() {
         if (clearOnBack) {
             // Pop all items except the first one
-            stackView.pop(null)
-            clearOnBack = false
-        }
-        else {
-            stackView.pop()
-        }
-    }
-
-    StackView {
-        id: stackView
-        anchors.fill: parent
-        focus: true
-
-        Component.onCompleted: {
-            // Perform our early initialization before constructing
-            // the initial view and pushing it to the StackView
-            doEarlyInit()
-            push(initialView)
-        }
-
-        onCurrentItemChanged: {
-            // Ensure focus travels to the next view when going back
-            if (currentItem) {
-                currentItem.forceActiveFocus()
-            }
-        }
-
-        Keys.onEscapePressed: {
-            if (depth > 1) {
-                goBack()
-            }
-            else {
-                quitConfirmationDialog.open()
-            }
-        }
-
-        Keys.onBackPressed: {
-            if (depth > 1) {
-                goBack()
-            }
-            else {
-                quitConfirmationDialog.open()
-            }
-        }
-
-        Keys.onMenuPressed: {
-            settingsButton.clicked()
-        }
-
-        // This is a keypress we've reserved for letting the
-        // SdlGamepadKeyNavigation object tell us to show settings
-        // when Menu is consumed by a focused control.
-        Keys.onHangupPressed: {
-            settingsButton.clicked()
+            stackView.pop(null);
+            clearOnBack = false;
+        } else {
+            stackView.pop();
         }
     }
 
@@ -164,8 +141,8 @@ ApplicationWindow {
         interval: 5 * 60000
         onTriggered: {
             if (!active && pollingActive) {
-                ComputerManager.stopPollingAsync()
-                pollingActive = false
+                ComputerManager.stopPollingAsync();
+                pollingActive = false;
             }
         }
     }
@@ -174,290 +151,367 @@ ApplicationWindow {
         // When we become invisible while streaming is going on,
         // stop polling immediately.
         if (!visible) {
-            inactivityTimer.stop()
+            inactivityTimer.stop();
 
             if (pollingActive) {
-                ComputerManager.stopPollingAsync()
-                pollingActive = false
+                ComputerManager.stopPollingAsync();
+                pollingActive = false;
             }
-        }
-        else if (active) {
+        } else if (active) {
             // When we become visible and active again, start polling
-            inactivityTimer.stop()
+            inactivityTimer.stop();
 
             // Restart polling if it was stopped
             if (!pollingActive) {
-                ComputerManager.startPolling()
-                pollingActive = true
+                ComputerManager.startPolling();
+                pollingActive = true;
             }
         }
 
         // Poll for gamepad input only when the window is in focus
-        SdlGamepadKeyNavigation.notifyWindowFocus(visible && active)
+        SdlGamepadKeyNavigation.notifyWindowFocus(visible && active);
     }
 
     onActiveChanged: {
         if (active) {
             // Stop the inactivity timer
-            inactivityTimer.stop()
+            inactivityTimer.stop();
 
             // Restart polling if it was stopped
             if (!pollingActive) {
-                ComputerManager.startPolling()
-                pollingActive = true
+                ComputerManager.startPolling();
+                pollingActive = true;
             }
-        }
-        else {
+        } else {
             // Start the inactivity timer to stop polling
             // if focus does not return within a few minutes.
-            inactivityTimer.restart()
+            inactivityTimer.restart();
         }
 
         // Poll for gamepad input only when the window is in focus
-        SdlGamepadKeyNavigation.notifyWindowFocus(visible && active)
+        SdlGamepadKeyNavigation.notifyWindowFocus(visible && active);
     }
 
-    function navigateTo(url, objectType)
-    {
-        var existingItem = stackView.find(function(item, index) {
-            return item instanceof objectType
-        })
+    function navigateTo(url, objectType) {
+        var existingItem = stackView.find(function (item, index) {
+            return item instanceof objectType;
+        });
 
         if (existingItem !== null) {
             // Pop to the existing item
-            stackView.pop(existingItem)
-        }
-        else {
+            stackView.pop(existingItem);
+        } else {
             // Create a new item
-            stackView.push(url)
+            stackView.push(url);
         }
     }
 
-    header: ToolBar {
-        id: toolBar
-        height: 60
-        anchors.topMargin: 5
-        anchors.bottomMargin: 5
+    RowLayout {
+        id: applicationLayout
+        anchors.fill: parent
+        spacing: 0
+        Rectangle {
+            id: navigation
+            objectName: "navigation"
+            Layout.preferredWidth: window.compactNavigation ? 68 : 184
+            Layout.minimumWidth: Layout.preferredWidth
+            Layout.maximumWidth: Layout.preferredWidth
+            Layout.fillHeight: true
+            color: window.sidebarColor
+            visible: runConfigChecks && toolBar.visible
 
-        Label {
-            id: titleLabel
-            visible: toolBar.width > 700
-            anchors.fill: parent
-            text: stackView.currentItem.objectName
-            font.pointSize: 20
-            elide: Label.ElideRight
-            horizontalAlignment: Qt.AlignHCenter
-            verticalAlignment: Qt.AlignVCenter
-        }
-
-        RowLayout {
-            spacing: 10
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            anchors.fill: parent
-
-            NavigableToolButton {
-                // Only make the button visible if the user has navigated somewhere.
-                visible: stackView.depth > 1
-
-                iconSource: "qrc:/res/arrow_left.svg"
-
-                onClicked: goBack()
-
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
-                }
+            Rectangle {
+                anchors.right: parent.right
+                width: 1
+                height: parent.height
+                color: window.dividerColor
             }
 
-            // This label will appear when the window gets too small and
-            // we need to ensure the toolbar controls don't collide
-            Label {
-                id: titleRowLabel
-                font.pointSize: titleLabel.font.pointSize
-                elide: Label.ElideRight
-                horizontalAlignment: Qt.AlignHCenter
-                verticalAlignment: Qt.AlignVCenter
-                Layout.fillWidth: true
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                anchors.topMargin: 24
+                anchors.bottomMargin: 16
+                spacing: 8
 
-                // We need this label to always be visible so it can occupy
-                // the remaining space in the RowLayout. To "hide" it, we
-                // just set the text to empty string.
-                text: !titleLabel.visible ? stackView.currentItem.objectName : ""
-            }
-
-            Label {
-                id: versionLabel
-                visible: stackView.currentItem instanceof SettingsView
-                text: qsTr("Version %1").arg(SystemProperties.versionString)
-                font.pointSize: 12
-                horizontalAlignment: Qt.AlignRight
-                verticalAlignment: Qt.AlignVCenter
-            }
-
-            NavigableToolButton {
-                id: discordButton
-                visible: SystemProperties.hasBrowser &&
-                         stackView.currentItem instanceof SettingsView
-
-                iconSource: "qrc:/res/discord.svg"
-
-                ToolTip.delay: 1000
-                ToolTip.timeout: 3000
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Join our community on Discord")
-
-                // TODO need to make sure browser is brought to foreground.
-                onClicked: Qt.openUrlExternally("https://moonlight-stream.org/discord");
-
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
-                }
-            }
-
-            NavigableToolButton {
-                id: addPcButton
-                visible: stackView.currentItem instanceof PcView
-
-                iconSource:  "qrc:/res/ic_add_to_queue_white_48px.svg"
-
-                ToolTip.delay: 1000
-                ToolTip.timeout: 3000
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Add PC manually") + (newPcShortcut.nativeText ? (" ("+newPcShortcut.nativeText+")") : "")
-
-                Shortcut {
-                    id: newPcShortcut
-                    sequence: StandardKey.New
-                    onActivated: addPcButton.clicked()
+                Label {
+                    text: window.compactNavigation ? "M" : "Moonlight"
+                    font.pixelSize: window.compactNavigation ? 22 : 20
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    Layout.leftMargin: window.compactNavigation ? 0 : 20
+                    Layout.rightMargin: window.compactNavigation ? 0 : 12
+                    Layout.bottomMargin: 16
+                    horizontalAlignment: window.compactNavigation ? Text.AlignHCenter : Text.AlignLeft
                 }
 
-                onClicked: {
-                    addPcDialog.open()
+                NavigableToolButton {
+                    navigationItem: true
+                    objectName: "devicesNavigation"
+                    text: qsTranslate("PcView", "Devices")
+                    iconSource: "qrc:/res/desktop_windows-48px.svg"
+                    display: window.compactNavigation ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                    Layout.fillWidth: true
+                    checked: stackView.currentItem instanceof PcView || stackView.currentItem instanceof AppView
+                    onClicked: window.showComputers()
+                    Keys.onDownPressed: settingsButton.forceActiveFocus(Qt.TabFocusReason)
+                    Keys.onRightPressed: window.focusPage()
                 }
 
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
-                }
-            }
-
-            NavigableToolButton {
-                property string browserUrl: ""
-
-                id: updateButton
-
-                iconSource: "qrc:/res/update.svg"
-
-                ToolTip.delay: 1000
-                ToolTip.timeout: 3000
-                ToolTip.visible: hovered || visible
-
-                // Invisible until we get a callback notifying us that
-                // an update is available
-                visible: false
-
-                onClicked: {
-                    if (SystemProperties.hasBrowser) {
-                        Qt.openUrlExternally(browserUrl);
+                NavigableToolButton {
+                    id: settingsButton
+                    navigationItem: true
+                    objectName: "settingsNavigation"
+                    text: qsTr("Settings")
+                    iconSource: "qrc:/res/nav-settings.svg"
+                    display: window.compactNavigation ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                    Layout.fillWidth: true
+                    checked: stackView.currentItem instanceof SettingsView
+                    onClicked: navigateTo("qrc:/gui/SettingsView.qml", SettingsView)
+                    Keys.onDownPressed: helpButton.forceActiveFocus(Qt.TabFocusReason)
+                    Keys.onRightPressed: window.focusPage()
+                    Shortcut {
+                        sequences: [StandardKey.Preferences]
+                        enabled: navigation.visible
+                        onActivated: settingsButton.clicked()
                     }
                 }
 
-                function updateAvailable(version, url)
-                {
-                    ToolTip.text = qsTr("Update available for Moonlight: Version %1").arg(version)
-                    updateButton.browserUrl = url
-                    updateButton.visible = true
+                NavigableToolButton {
+                    id: helpButton
+                    navigationItem: true
+                    objectName: "helpNavigation"
+                    text: qsTr("Help")
+                    visible: SystemProperties.hasBrowser
+                    iconSource: "qrc:/res/nav-help.svg"
+                    display: window.compactNavigation ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                    Layout.fillWidth: true
+                    onClicked: Qt.openUrlExternally("https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide")
+                    Keys.onRightPressed: window.focusPage()
+                    Shortcut {
+                        sequences: [StandardKey.HelpContents]
+                        enabled: navigation.visible
+                        onActivated: helpButton.clicked()
+                    }
                 }
+
+                Item {
+                    Layout.fillHeight: true
+                }
+
+                NavigableToolButton {
+                    navigationItem: true
+                    objectName: "themeToggle"
+                    text: window.darkTheme ? qsTr("Light appearance") : qsTr("Dark appearance")
+                    iconSource: window.darkTheme ? "qrc:/res/sun.svg" : "qrc:/res/moon.svg"
+                    display: window.compactNavigation ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                    Layout.fillWidth: true
+                    onClicked: window.darkTheme = !window.darkTheme
+                }
+
+                Label {
+                    visible: !window.compactNavigation
+                    text: qsTr("Version %1").arg(SystemProperties.versionString)
+                    font.pixelSize: 12
+                    Layout.leftMargin: 20
+                    color: window.secondaryColor
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+            }
+        }
+        ColumnLayout {
+            id: workspace
+            objectName: "workspace"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumWidth: 0
+            spacing: 0
+            ToolBar {
+                id: toolBar
+                objectName: "pageHeader"
+                Layout.fillWidth: true
+                Layout.preferredHeight: stackView.currentItem instanceof PcView ? 100 : 80
+                Layout.minimumWidth: 0
+                background: Rectangle {
+                    color: window.contentColor
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        width: parent.width
+                        height: 1
+                        color: window.dividerColor
+                    }
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 24
+                    anchors.rightMargin: 24
+                    spacing: 12
+
+                    NavigableToolButton {
+                        text: qsTr("Back")
+                        visible: stackView.depth > 1
+                        iconSource: "qrc:/res/arrow_left.svg"
+                        onClicked: goBack()
+                        Keys.onDownPressed: window.focusPage()
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        spacing: 8
+                        Label {
+                            objectName: "pageTitle"
+                            text: stackView.currentItem ? stackView.currentItem.objectName : "Moonlight"
+                            font.pixelSize: 26
+                            font.weight: Font.Bold
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            objectName: "pageSubtitle"
+                            visible: stackView.currentItem instanceof PcView
+                            text: qsTranslate("PcView", "Your remote workspace")
+                            font.pixelSize: 14
+                            color: window.secondaryColor
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+                    NavigableToolButton {
+                        text: qsTr("Join our community on Discord")
+                        visible: SystemProperties.hasBrowser && stackView.currentItem instanceof SettingsView
+                        iconSource: "qrc:/res/discord.svg"
+                        onClicked: Qt.openUrlExternally("https://moonlight-stream.org/discord")
+                    }
+                    NavigableToolButton {
+                        id: addPcButton
+                        text: qsTr("Add computer")
+                        objectName: "addComputer"
+                        Material.foreground: window.darkTheme ? "#1F1F1F" : "#FFFFFF"
+                        icon.color: Material.foreground
+                        background: Rectangle {
+                            radius: 8
+                            color: addPcButton.down ? Qt.darker(window.accentColor, 1.12) : window.accentColor
+                            border.width: addPcButton.activeFocus ? 2 : 0
+                            border.color: window.textColor
+                        }
+                        visible: stackView.currentItem instanceof PcView
+                        display: window.width > 850 ? AbstractButton.TextBesideIcon : AbstractButton.IconOnly
+                        iconSource: "qrc:/res/add.svg"
+                        onClicked: addPcDialog.open()
+                        Keys.onDownPressed: window.focusPage()
+                        Shortcut {
+                            sequences: [StandardKey.New]
+                            enabled: addPcButton.visible && toolBar.visible
+                            onActivated: addPcButton.clicked()
+                        }
+                    }
+                    NavigableToolButton {
+                        id: updateButton
+                        property string browserUrl: ""
+
+                        iconSource: "qrc:/res/update.svg"
+
+                        ToolTip.delay: 1000
+                        ToolTip.timeout: 3000
+                        ToolTip.visible: hovered || visible
+
+                        // Invisible until we get a callback notifying us that
+                        // an update is available
+                        visible: false
+
+                        onClicked: {
+                            if (SystemProperties.hasBrowser) {
+                                Qt.openUrlExternally(browserUrl);
+                            }
+                        }
+
+                        function updateAvailable(version, url) {
+                            ToolTip.text = qsTr("Update available for Moonlight: Version %1").arg(version);
+                            updateButton.browserUrl = url;
+                            updateButton.visible = true;
+                        }
+
+                        Component.onCompleted: {
+                            AutoUpdateChecker.onUpdateAvailable.connect(updateAvailable);
+                            AutoUpdateChecker.start();
+                        }
+
+                        Keys.onDownPressed: {
+                            stackView.currentItem.forceActiveFocus(Qt.TabFocus);
+                        }
+                    }
+                }
+            }
+            StackView {
+                id: stackView
+                objectName: "pageStack"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumWidth: 0
+                Layout.minimumHeight: 0
+                clip: true
+                background: Rectangle {
+                    color: window.contentColor
+                }
+                focus: true
 
                 Component.onCompleted: {
-                    AutoUpdateChecker.onUpdateAvailable.connect(updateAvailable)
-                    AutoUpdateChecker.start()
+                    // Perform our early initialization before constructing
+                    // the initial view and pushing it to the StackView
+                    doEarlyInit();
+                    push(initialView);
                 }
 
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
-                }
-            }
-
-            NavigableToolButton {
-                id: helpButton
-                visible: SystemProperties.hasBrowser
-
-                iconSource: "qrc:/res/question_mark.svg"
-
-                ToolTip.delay: 1000
-                ToolTip.timeout: 3000
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Help") + (helpShortcut.nativeText ? (" ("+helpShortcut.nativeText+")") : "")
-
-                Shortcut {
-                    id: helpShortcut
-                    sequence: StandardKey.HelpContents
-                    onActivated: helpButton.clicked()
+                onCurrentItemChanged: {
+                    // Ensure focus travels to the next view when going back
+                    if (currentItem) {
+                        currentItem.forceActiveFocus();
+                    }
                 }
 
-                // TODO need to make sure browser is brought to foreground.
-                onClicked: Qt.openUrlExternally("https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide");
-
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
-                }
-            }
-
-            NavigableToolButton {
-                // TODO: Implement gamepad mapping then unhide this button
-                visible: false
-
-                ToolTip.delay: 1000
-                ToolTip.timeout: 3000
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Gamepad Mapper")
-
-                iconSource: "qrc:/res/ic_videogame_asset_white_48px.svg"
-
-                onClicked: navigateTo("qrc:/gui/GamepadMapper.qml", GamepadMapper)
-
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
-                }
-            }
-
-            NavigableToolButton {
-                id: settingsButton
-
-                iconSource:  "qrc:/res/settings.svg"
-
-                onClicked: navigateTo("qrc:/gui/SettingsView.qml", SettingsView)
-
-                Keys.onDownPressed: {
-                    stackView.currentItem.forceActiveFocus(Qt.TabFocus)
+                Keys.onEscapePressed: {
+                    if (depth > 1) {
+                        goBack();
+                    } else {
+                        quitConfirmationDialog.open();
+                    }
                 }
 
-                Shortcut {
-                    id: settingsShortcut
-                    sequence: StandardKey.Preferences
-                    onActivated: settingsButton.clicked()
+                Keys.onBackPressed: {
+                    if (depth > 1) {
+                        goBack();
+                    } else {
+                        quitConfirmationDialog.open();
+                    }
                 }
 
-                ToolTip.delay: 1000
-                ToolTip.timeout: 3000
-                ToolTip.visible: hovered
-                ToolTip.text: qsTr("Settings") + (settingsShortcut.nativeText ? (" ("+settingsShortcut.nativeText+")") : "")
+                Keys.onMenuPressed: {
+                    settingsButton.clicked();
+                }
+
+                // This is a keypress we've reserved for letting the
+                // SdlGamepadKeyNavigation object tell us to show settings
+                // when Menu is consumed by a focused control.
+                Keys.onHangupPressed: {
+                    settingsButton.clicked();
+                }
             }
         }
     }
 
     ErrorMessageDialog {
         id: noHwDecoderDialog
-        text: qsTr("No functioning hardware accelerated video decoder was detected by Moonlight. " +
-                   "Your streaming performance may be severely degraded in this configuration.")
+        text: qsTr("No functioning hardware accelerated video decoder was detected by Moonlight. " + "Your streaming performance may be severely degraded in this configuration.")
         helpText: qsTr("Click the Help button for more information on solving this problem.")
         helpUrl: "https://github.com/moonlight-stream/moonlight-docs/wiki/Fixing-Hardware-Decoding-Problems"
     }
 
     ErrorMessageDialog {
         id: xWaylandDialog
-        text: qsTr("Hardware acceleration doesn't work on XWayland. Continuing on XWayland may result in poor streaming performance. " +
-                   "Try running with QT_QPA_PLATFORM=wayland or switch to X11.")
+        text: qsTr("Hardware acceleration doesn't work on XWayland. Continuing on XWayland may result in poor streaming performance. " + "Try running with QT_QPA_PLATFORM=wayland or switch to X11.")
         helpText: qsTr("Click the Help button for more information.")
         helpUrl: "https://github.com/moonlight-stream/moonlight-docs/wiki/Fixing-Hardware-Decoding-Problems"
     }
@@ -473,7 +527,7 @@ ApplicationWindow {
 
     ErrorMessageDialog {
         id: unmappedGamepadDialog
-        property string unmappedGamepads : ""
+        property string unmappedGamepads: ""
         text: qsTr("Moonlight detected gamepads without a mapping:") + "\n" + unmappedGamepads
         helpTextSeparator: "\n\n"
         helpText: qsTr("Click the Help button for information on how to map your gamepads.")
@@ -503,53 +557,66 @@ ApplicationWindow {
 
         onClosed: {
             if (quitAfter) {
-                Qt.quit()
+                Qt.quit();
             }
 
             // StreamSegue assumes its dialog will be re-created each time we
             // start streaming, so fake it by wiping out the text each time.
-            text = ""
+            text = "";
         }
     }
 
     NavigableDialog {
         id: addPcDialog
+        objectName: "addComputerDialog"
+        title: qsTr("Add PC manually")
         property string label: qsTr("Enter the IP address of your host PC:")
 
         standardButtons: Dialog.Ok | Dialog.Cancel
 
         onOpened: {
             // Force keyboard focus on the textbox so keyboard navigation works
-            editText.forceActiveFocus()
+            editText.forceActiveFocus();
+            standardButton(Dialog.Ok).enabled = editText.text.trim().length > 0;
         }
 
         onClosed: {
-            editText.clear()
+            editText.clear();
         }
 
         onAccepted: {
-            if (editText.text) {
-                ComputerManager.addNewHostManually(editText.text.trim())
+            if (editText.text.trim()) {
+                ComputerManager.addNewHostManually(editText.text.trim());
             }
         }
 
         ColumnLayout {
+            width: parent.width
             Label {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
                 text: addPcDialog.label
                 font.bold: true
             }
 
             TextField {
                 id: editText
+                onTextChanged: {
+                    var button = addPcDialog.standardButton(Dialog.Ok);
+                    if (button)
+                        button.enabled = text.trim().length > 0;
+                }
                 Layout.fillWidth: true
                 focus: true
 
                 Keys.onReturnPressed: {
-                    addPcDialog.accept()
+                    if (editText.text.trim())
+                        addPcDialog.accept();
                 }
 
                 Keys.onEnterPressed: {
-                    addPcDialog.accept()
+                    if (editText.text.trim())
+                        addPcDialog.accept();
                 }
             }
         }

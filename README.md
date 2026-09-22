@@ -1,5 +1,43 @@
 # Moonlight PC
 
+## 桌面界面重构版
+
+本仓库是 [coderleexl/moonlight-qt](https://github.com/coderleexl/moonlight-qt)，基于 Moonlight Qt，面向远程办公并兼顾游戏串流。
+
+### 运行界面预览
+
+以下截图由实际 QML 界面运行渲染，设备列表与能力参数使用示例数据。
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![浅色运行界面](example/moonlight-light.png) | ![深色运行界面](example/moonlight-dark.png) |
+
+### 本次界面更新
+
+- 蓝白浅色与简约黑灰深色主题，默认窗口为 1100 × 680；固定侧栏、设备列表与详情区支持窗口缩放。
+- **连接桌面**直接启动或恢复主机提供的 `Desktop` 应用，独立于直启应用设置；其他应用正在运行时保留退出确认。未找到 `Desktop` 时提示在 Sunshine 中添加。
+- **查看**打开完整应用列表，支持列表与网格切换；设备页保留配对、唤醒功能，**管理**提供重命名、删除、网络测试等入口。
+- 显示当前串流配置，以及本机显示器的原生分辨率、该分辨率下的最高刷新率和硬件／软件解码检测状态。
+- 设置按功能分类；统一按钮、弹窗、键盘焦点和连接状态界面，并补充简体／繁体中文翻译。
+
+主题切换目前仅在当前运行期间生效。本机能力为检测结果，实际串流效果还取决于主机、编码配置与网络；界面缩放独立于串流分辨率。
+
+### macOS 开发运行
+
+本地已使用 Mac ARM64、Qt 6.11.0 完成 Release 编译。安装 Qt 并准备好子模块及依赖后，在仓库根目录运行：
+
+```sh
+qmake moonlight-qt.pro
+make release -j8
+open app/Moonlight.app
+```
+
+首次准备依赖请参见下方 **Build Setup Steps**。此产物用于本地开发；分发打包仍使用原有构建脚本。
+
+## 上游项目说明
+
+下面保留上游的功能、下载与跨平台构建说明；其中的下载链接指向上游发行版。
+
 [Moonlight PC](https://moonlight-stream.org) is an open source PC client for NVIDIA GameStream and [Sunshine](https://github.com/LizardByte/Sunshine).
 
 Moonlight also has mobile versions for [Android](https://github.com/moonlight-stream/moonlight-android) and [iOS](https://github.com/moonlight-stream/moonlight-ios).

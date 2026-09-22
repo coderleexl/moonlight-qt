@@ -9,6 +9,16 @@
         <file>res/warning_FILL1_wght300_GRAD200_opsz24.svg</file>
         <file>res/stop_FILL1_wght700_GRAD200_opsz48.svg</file>
         <file>res/no_app_image.png</file>
+        <file>res/host-monitor-light.png</file>
+        <file>res/host-monitor-dark.png</file>
+        <file>res/add.svg</file>
+        <file>res/nav-settings.svg</file>
+        <file>res/nav-help.svg</file>
+        <file>res/capability-display.svg</file>
+        <file>res/capability-refresh.svg</file>
+        <file>res/capability-chip.svg</file>
+        <file>res/sun.svg</file>
+        <file>res/moon.svg</file>
         <file>res/settings.svg</file>
         <file>res/arrow_left.svg</file>
         <file>res/question_mark.svg</file>

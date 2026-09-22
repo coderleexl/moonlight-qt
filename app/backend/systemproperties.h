@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QRect>
+#include <QVariantList>
 
 #include "SDL_compat.h"
 
@@ -28,11 +29,14 @@ public:
     Q_PROPERTY(QString versionString MEMBER versionString CONSTANT)
 
     // Properties queried asynchronously (startAsyncLoad() must be called!)
+    Q_PROPERTY(bool decoderInfoReady MEMBER decoderInfoReady NOTIFY decoderInfoReadyChanged)
     Q_PROPERTY(bool hasHardwareAcceleration MEMBER hasHardwareAcceleration NOTIFY hasHardwareAccelerationChanged)
     Q_PROPERTY(bool rendererAlwaysFullScreen MEMBER rendererAlwaysFullScreen NOTIFY rendererAlwaysFullScreenChanged)
     Q_PROPERTY(QString unmappedGamepads MEMBER unmappedGamepads NOTIFY unmappedGamepadsChanged)
     Q_PROPERTY(QSize maximumResolution MEMBER maximumResolution NOTIFY maximumResolutionChanged)
     Q_PROPERTY(bool supportsHdr MEMBER supportsHdr NOTIFY supportsHdrChanged)
+
+    Q_PROPERTY(QVariantList displayCapabilities MEMBER displayCapabilities NOTIFY displayCapabilitiesChanged)
 
     // Either startAsyncLoad()+waitForAsyncLoad() or refreshDisplays() must be invoked first
     Q_INVOKABLE QRect getNativeResolution(int displayIndex);
@@ -44,7 +48,9 @@ public:
     Q_INVOKABLE void refreshDisplays();
 
 signals:
+    void displayCapabilitiesChanged();
     void unmappedGamepadsChanged();
+    void decoderInfoReadyChanged();
     void hasHardwareAccelerationChanged();
     void rendererAlwaysFullScreenChanged();
     void maximumResolutionChanged();
@@ -70,6 +76,7 @@ private:
     bool isDarwin;
 
     // Properties only set if startAsyncLoad() is called
+    bool decoderInfoReady = false;
     bool hasHardwareAcceleration;
     bool rendererAlwaysFullScreen;
     QSize maximumResolution;
@@ -77,6 +84,7 @@ private:
     QString unmappedGamepads;
 
     // Properties set by refreshDisplays()
+    QVariantList displayCapabilities;
     QList<QRect> monitorNativeResolutions;
     QList<QRect> monitorSafeAreaResolutions;
     QList<int> monitorRefreshRates;

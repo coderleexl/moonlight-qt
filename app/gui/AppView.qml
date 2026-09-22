@@ -1,297 +1,345 @@
 import QtQuick 2.9
 import QtQuick.Controls 2.2
 import QtQuick.Controls.Material 2.2
+import QtQuick.Layouts 1.3
 
 import AppModel 1.0
 import ComputerManager 1.0
 import SdlGamepadKeyNavigation 1.0
 
 CenteredGridView {
+    id: appGrid
     property int computerIndex
-    property AppModel appModel : createModel()
+    property AppModel appModel: createModel()
     property bool activated
     property bool showHiddenGames
+    property bool launchDesktop: false
+    property int desktopTargetIndex: -1
     property bool showGames
-
-    id: appGrid
     focus: true
     activeFocusOnTab: true
-    topMargin: 20
+    topMargin: 12
+    clip: true
+    property bool listMode: true
     bottomMargin: 5
-    cellWidth: 230; cellHeight: 297;
+    cellWidth: listMode ? Math.max(1, width - 2 * minMargin) : 230
+    cellHeight: listMode ? 88 : 326
+    header: Rectangle {
+        z: 3
+        width: appGrid.width
+        height: 68
+        color: window.pageColor
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            Label {
+                text: qsTr("Choose an app to start or resume")
+                color: window.secondaryColor
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+            Button {
+                background: Rectangle {
+                    implicitWidth: 100
+                    implicitHeight: 40
+                    radius: 8
+                    color: parent.highlighted ? window.accentColor : parent.flat ? "transparent" : window.surfaceColor
+                    border.color: parent.activeFocus || parent.hovered ? window.accentColor : window.borderColor
+                    border.width: parent.activeFocus ? 2 : parent.flat ? 0 : 1
+                    opacity: parent.enabled ? 1 : 0.5
+                }
+                text: qsTr("List")
+                checked: appGrid.listMode
+                onClicked: {
+                    appGrid.listMode = true;
+                    appGrid.positionViewAtBeginning();
+                }
+            }
+            Button {
+                background: Rectangle {
+                    implicitWidth: 100
+                    implicitHeight: 40
+                    radius: 8
+                    color: parent.highlighted ? window.accentColor : parent.flat ? "transparent" : window.surfaceColor
+                    border.color: parent.activeFocus || parent.hovered ? window.accentColor : window.borderColor
+                    border.width: parent.activeFocus ? 2 : parent.flat ? 0 : 1
+                    opacity: parent.enabled ? 1 : 0.5
+                }
+                text: qsTr("Grid")
+                checked: !appGrid.listMode
+                onClicked: {
+                    appGrid.listMode = false;
+                    appGrid.positionViewAtBeginning();
+                }
+            }
+        }
+    }
 
-    function computerLost()
-    {
+    function resolveDesktop() {
+        if (!activated || !launchDesktop)
+            return;
+        desktopTargetIndex = appModel.getDesktopAppIndex();
+        if (desktopTargetIndex < 0)
+            return;
+        currentIndex = desktopTargetIndex;
+        positionViewAtIndex(currentIndex, GridView.Contain);
+        Qt.callLater(startDesktop);
+    }
+
+    function startDesktop() {
+        if (!activated || !launchDesktop || desktopTargetIndex < 0 || currentIndex !== desktopTargetIndex || !currentItem)
+            return;
+        launchDesktop = false;
+        desktopTimeout.stop();
+        currentItem.launchOrResumeSelectedApp(true);
+    }
+
+    onCurrentItemChanged: Qt.callLater(startDesktop)
+    onCountChanged: Qt.callLater(resolveDesktop)
+
+    Timer {
+        id: desktopTimeout
+        interval: 6000
+        onTriggered: {
+            if (!appGrid.launchDesktop)
+                return;
+            appGrid.launchDesktop = false;
+            desktopMissingDialog.open();
+        }
+    }
+    ErrorMessageDialog {
+        id: desktopMissingDialog
+        objectName: "desktopMissingDialog"
+        text: qsTr("This host does not provide a Desktop app. Add Desktop in Sunshine, then try again, or choose an app from the list.")
+    }
+
+    function computerLost() {
         // Go back to the PC view on PC loss
-        stackView.pop()
+        stackView.pop();
     }
 
     Component.onCompleted: {
         // Don't show any highlighted item until interacting with them.
         // We do this here instead of onActivated to avoid losing the user's
         // selection when backing out of a different page of the app.
-        currentIndex = -1
+        currentIndex = -1;
     }
 
     StackView.onActivated: {
-        appModel.computerLost.connect(computerLost)
-        activated = true
+        appModel.computerLost.connect(computerLost);
+        activated = true;
 
         // Highlight the first item if a gamepad is connected
         if (currentIndex === -1 && SdlGamepadKeyNavigation.getConnectedGamepads() > 0) {
-            currentIndex = 0
+            currentIndex = 0;
         }
 
-        if (!showGames && !showHiddenGames) {
+        if (launchDesktop) {
+            desktopTimeout.start();
+            resolveDesktop();
+        } else if (!showGames && !showHiddenGames) {
             // Check if there's a direct launch app
             var directLaunchAppIndex = model.getDirectLaunchAppIndex();
             if (directLaunchAppIndex >= 0) {
                 // Start the direct launch app if nothing else is running
-                currentIndex = directLaunchAppIndex
-                currentItem.launchOrResumeSelectedApp(false)
-
-                // Set showGames so we will not loop when the stream ends
-                showGames = true
+                currentIndex = directLaunchAppIndex;
+                // Mark this before launching: returning from streaming must not relaunch.
+                showGames = true;
+                Qt.callLater(function () {
+                    if (activated && currentItem)
+                        currentItem.launchOrResumeSelectedApp(false);
+                });
             }
         }
     }
 
     StackView.onDeactivating: {
-        appModel.computerLost.disconnect(computerLost)
-        activated = false
+        appModel.computerLost.disconnect(computerLost);
+        activated = false;
+        desktopTimeout.stop();
     }
 
-    function createModel()
-    {
-        var model = Qt.createQmlObject('import AppModel 1.0; AppModel {}', parent, '')
-        model.initialize(ComputerManager, computerIndex, showHiddenGames)
-        return model
+    function createModel() {
+        var model = Qt.createQmlObject('import AppModel 1.0; AppModel {}', appGrid, '');
+        model.initialize(ComputerManager, computerIndex, showHiddenGames);
+        return model;
     }
 
     model: appModel
 
     delegate: NavigableItemDelegate {
-        width: 220; height: 287;
+        id: appDelegate
+        width: appGrid.cellWidth - 8
+        height: appGrid.cellHeight - 8
+        listNavigation: appGrid.listMode
+        Accessible.role: Accessible.Button
+        Accessible.name: model.name
+        background: Rectangle {
+            radius: 8
+            color: appDelegate.highlighted ? window.selectionColor : window.surfaceColor
+            border.color: appDelegate.highlighted ? window.accentColor : window.borderColor
+            border.width: appDelegate.highlighted ? 2 : 1
+        }
         grid: appGrid
 
         property alias appContextMenu: appContextMenuLoader.item
-        property alias appNameText: appNameTextLoader.item
 
         // Dim the app if it's hidden
         opacity: model.hidden ? 0.4 : 1.0
 
         Image {
-            property bool isPlaceholder: false
-
             id: appIcon
-            anchors.horizontalCenter: parent.horizontalCenter
+            x: appGrid.listMode ? 12 : (parent.width - width) / 2
             y: 10
+            width: appGrid.listMode ? 44 : 174
+            height: appGrid.listMode ? 58 : 222
             source: model.boxart
-
-            onSourceSizeChanged: {
-                // Nearly all of Nvidia's official box art does not match the dimensions of placeholder
-                // images, however the one known exception is Overcooked. Therefore, we only execute
-                // the image size checks if this is not an app collector game. We know the officially
-                // supported games all have box art, so this check is not required.
-                if (!model.isAppCollectorGame &&
-                    ((sourceSize.width === 130 && sourceSize.height === 180) || // GFE 2.0 placeholder image
-                     (sourceSize.width === 628 && sourceSize.height === 888) || // GFE 3.0 placeholder image
-                     (sourceSize.width === 200 && sourceSize.height === 266)))  // Our no_app_image.png
-                {
-                    isPlaceholder = true
-                }
-                else
-                {
-                    isPlaceholder = false
-                }
-
-                width = 200
-                height = 267
-            }
-
-            // Display a tooltip with the full name if it's truncated
-            ToolTip.text: model.name
-            ToolTip.delay: 1000
-            ToolTip.timeout: 5000
-            ToolTip.visible: (parent.hovered || parent.highlighted) && (!appNameText || appNameText.truncated)
+            fillMode: Image.PreserveAspectFit
+            // Box art is optional; the name and actions remain usable if loading fails.
         }
-
-        Loader {
-            active: model.running
-            asynchronous: true
-            anchors.fill: appIcon
-
-            sourceComponent: Item {
-                RoundButton {
-                    // Don't steal focus from the toolbar buttons
-                    focusPolicy: Qt.NoFocus
-
-                    anchors.horizontalCenterOffset: appIcon.isPlaceholder ? -47 : 0
-                    anchors.verticalCenterOffset: appIcon.isPlaceholder ? -75 : -60
-                    anchors.centerIn: parent
-                    implicitWidth: 85
-                    implicitHeight: 85
-
-                    icon.source: "qrc:/res/play_arrow_FILL1_wght700_GRAD200_opsz48.svg"
-                    icon.width: 75
-                    icon.height: 75
-
-                    onClicked: {
-                        launchOrResumeSelectedApp(true)
-                    }
-
-                    ToolTip.text: qsTr("Resume Game")
-                    ToolTip.delay: 1000
-                    ToolTip.timeout: 3000
-                    ToolTip.visible: hovered
-
-                    Material.background: "#D0808080"
-                }
-
-                RoundButton {
-                    // Don't steal focus from the toolbar buttons
-                    focusPolicy: Qt.NoFocus
-
-                    anchors.horizontalCenterOffset: appIcon.isPlaceholder ? 47 : 0
-                    anchors.verticalCenterOffset: appIcon.isPlaceholder ? -75 : 60
-                    anchors.centerIn: parent
-                    implicitWidth: 85
-                    implicitHeight: 85
-
-                    icon.source: "qrc:/res/stop_FILL1_wght700_GRAD200_opsz48.svg"
-                    icon.width: 75
-                    icon.height: 75
-
-                    onClicked: {
-                        doQuitGame()
-                    }
-
-                    ToolTip.text: qsTr("Quit Game")
-                    ToolTip.delay: 1000
-                    ToolTip.timeout: 3000
-                    ToolTip.visible: hovered
-
-                    Material.background: "#D0808080"
-                }
-            }
-        }
-
-        Loader {
-            id: appNameTextLoader
-            active: appIcon.isPlaceholder
-
-            // This loader is not asynchronous to avoid noticeable differences
-            // in the time in which the text loads for each game.
-
+        Rectangle {
+            x: appIcon.x
+            y: appIcon.y
             width: appIcon.width
-            height: model.running ? 175 : appIcon.height
-
-            anchors.left: appIcon.left
-            anchors.right: appIcon.right
-            anchors.bottom: appIcon.bottom
-
-            sourceComponent: Label {
-                id: appNameText
-                text: model.name
-                font.pointSize: 22
-                leftPadding: 20
-                rightPadding: 20
-                verticalAlignment: Text.AlignVCenter
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                elide: Text.ElideRight
+            height: appIcon.height
+            visible: appIcon.status !== Image.Ready
+            color: window.selectionColor
+            radius: 6
+            Label {
+                anchors.centerIn: parent
+                text: model.name.slice(0, 1).toUpperCase()
+                font.pixelSize: appGrid.listMode ? 24 : 48
+                color: window.accentColor
+            }
+        }
+        Label {
+            x: appGrid.listMode ? 72 : 12
+            y: appGrid.listMode ? 12 : 240
+            width: appGrid.listMode ? Math.max(20, parent.width - 72 - appActions.width - 20) : parent.width - 24
+            height: appGrid.listMode ? 24 : 30
+            text: model.name
+            font.weight: Font.DemiBold
+            elide: Text.ElideRight
+            ToolTip.visible: appDelegate.hovered && truncated
+            ToolTip.text: model.name
+        }
+        Label {
+            x: 72
+            y: 43
+            width: Math.max(20, parent.width - 72 - appActions.width - 20)
+            visible: appGrid.listMode
+            text: model.running ? qsTr("Running") : model.hidden ? qsTr("Hidden") : model.directLaunch ? qsTr("Direct Launch") : qsTr("Ready to launch")
+            color: model.running ? window.onlineColor : window.secondaryColor
+            font.pixelSize: 12
+            elide: Text.ElideRight
+        }
+        Row {
+            id: appActions
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            y: appGrid.listMode ? 16 : 272
+            spacing: 4
+            Button {
+                background: Rectangle {
+                    implicitWidth: 100
+                    implicitHeight: 40
+                    radius: 8
+                    color: parent.highlighted ? window.accentColor : parent.flat ? "transparent" : window.surfaceColor
+                    border.color: parent.activeFocus || parent.hovered ? window.accentColor : window.borderColor
+                    border.width: parent.activeFocus ? 2 : parent.flat ? 0 : 1
+                    opacity: parent.enabled ? 1 : 0.5
+                }
+                visible: model.running
+                text: qsTr("Resume Game")
+                onClicked: appDelegate.launchOrResumeSelectedApp(true)
+            }
+            Button {
+                background: Rectangle {
+                    implicitWidth: 100
+                    implicitHeight: 40
+                    radius: 8
+                    color: parent.highlighted ? window.accentColor : parent.flat ? "transparent" : window.surfaceColor
+                    border.color: parent.activeFocus || parent.hovered ? window.accentColor : window.borderColor
+                    border.width: parent.activeFocus ? 2 : parent.flat ? 0 : 1
+                    opacity: parent.enabled ? 1 : 0.5
+                }
+                visible: model.running && appGrid.listMode
+                text: qsTr("Quit Game")
+                onClicked: appDelegate.doQuitGame()
+            }
+            ToolButton {
+                text: "⋯"
+                Accessible.name: qsTr("App actions")
+                onClicked: {
+                    appContextMenu.initiator = this;
+                    appContextMenu.open();
+                }
             }
         }
 
-        function launchOrResumeSelectedApp(quitExistingApp)
-        {
-            var runningId = appModel.getRunningAppId()
+        function launchOrResumeSelectedApp(quitExistingApp) {
+            var runningId = appModel.getRunningAppId();
             if (runningId !== 0 && runningId !== model.appid) {
                 if (quitExistingApp) {
-                    quitAppDialog.appName = appModel.getRunningAppName()
-                    quitAppDialog.segueToStream = true
-                    quitAppDialog.nextAppName = model.name
-                    quitAppDialog.nextAppIndex = index
-                    quitAppDialog.open()
+                    quitAppDialog.appName = appModel.getRunningAppName();
+                    quitAppDialog.segueToStream = true;
+                    quitAppDialog.nextAppName = model.name;
+                    quitAppDialog.nextAppIndex = index;
+                    quitAppDialog.open();
                 }
 
-                return
+                return;
             }
 
-            var component = Qt.createComponent("StreamSegue.qml")
+            var component = Qt.createComponent("StreamSegue.qml");
             var segue = component.createObject(stackView, {
-                                                   "appName": model.name,
-                                                   "session": appModel.createSessionForApp(index),
-                                                   "isResume": runningId === model.appid
-                                               })
-            stackView.push(segue)
+                "appName": model.name,
+                "session": appModel.createSessionForApp(index),
+                "isResume": runningId === model.appid
+            });
+            stackView.push(segue);
         }
 
         onClicked: {
-            // Only allow clicking on the box art for non-running games.
-            // For running games, buttons will appear to resume or quit which
-            // will handle starting the game and clicks on the box art will
-            // be ignored.
-            if (!model.running) {
-                launchOrResumeSelectedApp(true)
-            }
+            appGrid.currentIndex = index;
+            launchOrResumeSelectedApp(true);
         }
 
         onPressAndHold: {
             // popup() ensures the menu appears under the mouse cursor
             if (appContextMenu.popup) {
-                appContextMenu.popup()
-            }
-            else {
+                appContextMenu.popup();
+            } else {
                 // Qt 5.9 doesn't have popup()
-                appContextMenu.open()
+                appContextMenu.open();
             }
         }
 
         MouseArea {
             anchors.fill: parent
-            acceptedButtons: Qt.RightButton;
+            acceptedButtons: Qt.RightButton
             onClicked: {
-                parent.pressAndHold()
+                parent.pressAndHold();
             }
         }
 
-        Keys.onReturnPressed: {
-            // Open the app context menu if activated via the gamepad or keyboard
-            // for running games. If the game isn't running, the above onClicked
-            // method will handle the launch.
-            if (model.running) {
-                // This will be keyboard/gamepad driven so use
-                // open() instead of popup()
-                appContextMenu.open()
-            }
-        }
-
-        Keys.onEnterPressed: {
-            // Open the app context menu if activated via the gamepad or keyboard
-            // for running games. If the game isn't running, the above onClicked
-            // method will handle the launch.
-            if (model.running) {
-                // This will be keyboard/gamepad driven so use
-                // open() instead of popup()
-                appContextMenu.open()
-            }
-        }
+        Keys.onReturnPressed: launchOrResumeSelectedApp(true)
+        Keys.onEnterPressed: launchOrResumeSelectedApp(true)
 
         Keys.onMenuPressed: {
             // This will be keyboard/gamepad driven so use open() instead of popup()
-            appContextMenu.open()
+            appContextMenu.open();
         }
 
         function doQuitGame() {
-            quitAppDialog.appName = appModel.getRunningAppName()
-            quitAppDialog.segueToStream = false
-            quitAppDialog.open()
+            quitAppDialog.appName = appModel.getRunningAppName();
+            quitAppDialog.segueToStream = false;
+            quitAppDialog.open();
         }
 
         Loader {
             id: appContextMenuLoader
-            asynchronous: true
+            asynchronous: false
             sourceComponent: NavigableMenu {
                 id: appContextMenu
                 initiator: appContextMenuLoader.parent
@@ -334,41 +382,60 @@ CenteredGridView {
 
     Row {
         anchors.centerIn: parent
+        width: parent.width - 48
         spacing: 5
         visible: appGrid.count === 0
 
         Label {
             text: qsTr("This computer doesn't seem to have any applications or some applications are hidden")
-            font.pointSize: 20
+            width: parent.width
+            font.pixelSize: 18
+            color: window.secondaryColor
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
         }
     }
 
+    ConnectionStatus {
+        parent: appGrid
+        anchors.fill: parent
+        z: 4
+        visible: appGrid.launchDesktop
+        text: qsTr("Finding Desktop…")
+        MouseArea {
+            anchors.fill: parent
+        }
+    }
+
     NavigableMessageDialog {
         id: quitAppDialog
-        property string appName : ""
-        property bool segueToStream : false
+        objectName: "quitAppDialog"
+        property string appName: ""
+        property bool segueToStream: false
         property string nextAppName: ""
         property int nextAppIndex: 0
-        text:qsTr("Are you sure you want to quit %1? Any unsaved progress will be lost.").arg(appName)
+        text: qsTr("Are you sure you want to quit %1? Any unsaved progress will be lost.").arg(appName)
         standardButtons: Dialog.Yes | Dialog.No
 
         function quitApp() {
-            var component = Qt.createComponent("QuitSegue.qml")
-            var params = {"appName": appName, "quitRunningAppFn": function() { appModel.quitRunningApp() }}
+            var component = Qt.createComponent("QuitSegue.qml");
+            var params = {
+                "appName": appName,
+                "quitRunningAppFn": function () {
+                    appModel.quitRunningApp();
+                }
+            };
             if (segueToStream) {
                 // Store the session and app name if we're going to stream after
                 // successfully quitting the old app.
-                params.nextAppName = nextAppName
-                params.nextSession = appModel.createSessionForApp(nextAppIndex)
-            }
-            else {
-                params.nextAppName = null
-                params.nextSession = null
+                params.nextAppName = nextAppName;
+                params.nextSession = appModel.createSessionForApp(nextAppIndex);
+            } else {
+                params.nextAppName = null;
+                params.nextSession = null;
             }
 
-            stackView.push(component.createObject(stackView, params))
+            stackView.push(component.createObject(stackView, params));
         }
 
         onAccepted: quitApp()

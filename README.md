@@ -36,6 +36,65 @@ open app/Moonlight.app
 
 首次准备依赖请参见下方 [Build Setup Steps](#build-setup-steps)。请使用本仓库源码构建此界面版本；下方上游安装包不包含本次界面改动。开发产物位于 `app/Moonlight.app`，分发打包仍使用原有构建脚本。
 
+### Windows 独立测试版：Moonlight Desk Preview
+
+通过 [Windows Desk Preview 构建流程](https://github.com/coderleexl/moonlight-qt/actions/workflows/build-windows-preview.yml) 在 Windows x64 上编译 Moonlight 与固定版本的 Sunshine，生成单个 `MoonlightDeskPreview-Setup-x64.exe` 安装程序和免安装 ZIP。**需等该流程成功完成后，在 Artifacts 中下载 `MoonlightDeskPreview-Windows-x64`；源码仓库不包含已验证的 Windows 安装包。**
+
+测试版使用独立标识，可与原版共存：
+
+| 项目 | 测试版 |
+| --- | --- |
+| 应用 / 可执行文件 | Moonlight Desk Preview / `MoonlightDeskPreview.exe` |
+| 安装目录 | `%LOCALAPPDATA%\Programs\MoonlightDeskPreview` |
+| 设置与配对身份 | `HKCU\Software\coderleexl\MoonlightDeskPreview` |
+| 主机端口 / Web 配置端口 | `48989` / `48990` |
+| 安装与卸载 | 独立 AppId，仅当前用户，无需覆盖原版 |
+
+安装后在“本机”页面启动服务，按“配置与配对 → 添加本机 → 配对 → 连接桌面”测试。默认只监听本机。其他设备连接 Windows 时，先停止服务并关闭“仅本机测试”，重新启动后添加 `Windows 局域网 IP:48989`；必要时允许内置 Sunshine 通过 Windows 防火墙的专用网络。退出应用会停止内置服务。本版不自动安装 Sunshine 系统服务、驱动或开机启动项。
+
+构建流程包含 Windows 进程管理测试、安装／卸载检查、客户端启动和 Sunshine Web 配置页启动检查；GPU 编解码、真实串流、锁屏／UAC 和手柄驱动需在目标电脑上实测。安装包尚未签名，可能出现 SmartScreen 提示。
+
+本地 Windows 开发时，先按工作流中的 MSYS2 步骤编译 Sunshine 并执行 `cmake --install` 得到服务目录，再在安装 Qt 6.11 MSVC、Inno Setup 6 的 x64 MSVC 开发命令行中运行：
+
+```powershell
+./setup-deps.ps1
+./scripts/build-preview-windows.ps1 -SunshinePayload ./build/sunshine-payload
+```
+
+该脚本使用 `CONFIG+=host_preview` 构建独立身份，输出位于 `build/preview-installer/`。普通构建仍使用原有应用身份。ZIP 解压版同样使用测试版的用户配置，不与原版共享设置。
+
+### 内置 Sunshine（macOS 实验功能）
+
+正在接入源码构建的 Sunshine，固定版本为 `v2026.914.233613`（`63d35f7`），源码位于 `third_party/sunshine` 子模块。整合产物将服务放在 `Moonlight.app/Contents/Helpers/Sunshine.app` 内，无需单独安装 Sunshine App；运行时仍有独立的后台进程，由 Moonlight 管理。
+
+开发依赖：原有 Moonlight 构建环境，以及 Homebrew 的 `cmake ninja pkg-config boost openssl@3 opus miniupnpc node`。构建脚本会初始化 Sunshine 所需子模块，下载其构建依赖，并编译服务与 Web 配置页面：
+
+```sh
+./scripts/build-integrated-macos.sh
+open app/Moonlight.app
+```
+
+脚本生成本机开发签名的应用，尚未作为可分发安装包验证。普通 `qmake` 构建仅编译管理界面，不会自动下载或编译 Sunshine；缺少内置服务时，“本机”页会提示且禁用启动。
+
+本机闭环测试步骤：
+
+1. 打开侧栏“本机”，保留“仅本机测试（127.0.0.1）”，启动服务。
+2. 在“配置与配对”中设置 Sunshine 登录账号；按 macOS 提示授予屏幕录制权限，远程键鼠输入还需要辅助功能权限，修改后重启服务。
+3. 点击“添加本机”，在设备页发起配对，将 PIN 输入 Sunshine 配置页面。
+4. 点击“连接桌面”。同屏串流会出现画面套娃；该测试可检查连接链路，不能代表真实网络延迟和远端输入体验。
+
+默认不自动启动，不开启 UPnP；配置、凭据和日志位于 Moonlight 应用数据目录下的 `sunshine/`，不会接管单独安装的 Sunshine。允许局域网连接时，先停止服务，再关闭“仅本机测试”。退出 Moonlight 会停止它启动的服务，目前不支持无人值守常驻。**当前管理代码已编译并通过进程管理测试；当前源码及依赖下载因网络中断未完成，完整整合包和真实串流仍待验证。**
+
+进程管理测试使用受控测试进程，覆盖服务缺失、端口占用、启停、配置保留、异常退出和退出清理，不代替真实 Sunshine 串流测试：
+
+```sh
+mkdir -p build/sunshine-manager-test/Contents/MacOS
+cd build/sunshine-manager-test/Contents/MacOS
+qmake ../../../../tests/sunshine-manager/sunshine-manager.pro
+make -j8
+./sunshine-manager-test
+```
+
 ## 上游项目说明
 
 下面保留上游的功能、下载与跨平台构建说明；其中的下载链接指向上游发行版。

@@ -1,0 +1,158 @@
+name: Windows Desk Preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/build-windows-preview.yml'
+      - 'scripts/build-preview-windows.ps1'
+      - 'scripts/test-preview-windows.ps1'
+      - 'packaging/windows/**'
+      - 'app/**'
+      - 'tests/sunshine-manager/**'
+      - 'third_party/sunshine'
+permissions:
+  contents: read
+concurrency:
+  group: windows-desk-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sunshine:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch pinned Sunshine source and Windows dependencies
+        shell: bash
+        run: |
+          git submodule update --init third_party/sunshine
+          git -C third_party/sunshine submodule update --init --recursive --depth 1 --jobs 4 \
+            third-party/build-deps third-party/libdisplaydevice third-party/libvirtualhid \
+            third-party/lizardbyte-common third-party/moonlight-common-c \
+            third-party/Simple-Web-Server third-party/nvapi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-cppwinrt
+            mingw-w64-ucrt-x86_64-curl-winssl
+            mingw-w64-ucrt-x86_64-miniupnpc
+            mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-onevpl
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-MinHook
+      - name: Build Sunshine from source
+        shell: msys2 {0}
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
+          set -euo pipefail
+          export BRANCH=bundled
+          export BUILD_VERSION="$(git -C third_party/sunshine describe --tags --exact-match)"
+          export COMMIT="$(git -C third_party/sunshine rev-parse HEAD)"
+          cmake -S third_party/sunshine -B build/sunshine-windows -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF \
+            -DSUNSHINE_ENABLE_TRAY=OFF -DSUNSHINE_USE_STATIC_QT=OFF \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLISHER_NAME=coderleexl \
+            -DSUNSHINE_PUBLISHER_WEBSITE=https://github.com/coderleexl/moonlight-qt \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL=https://github.com/coderleexl/moonlight-qt/issues
+          cmake --build build/sunshine-windows --parallel 4
+          cmake --install build/sunshine-windows --prefix "$PWD/build/sunshine-payload"
+          mkdir -p build/sunshine-payload/licenses
+          cp third_party/sunshine/LICENSE build/sunshine-payload/licenses/Sunshine-LICENSE.txt
+          printf 'https://github.com/LizardByte/Sunshine\n%s\n' "$COMMIT" > build/sunshine-payload/licenses/SOURCE.txt
+          # Check the deployable copy: accidental MSYS2 runtime dependencies are a packaging error.
+          ldd build/sunshine-payload/sunshine.exe | tee build/sunshine-linkage.txt
+          if grep -E '=> not found|=> /(ucrt64|mingw64|clang64)/bin/' build/sunshine-linkage.txt; then
+            echo 'Sunshine has unpackaged runtime dependencies' >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v6
+        with:
+          name: sunshine-preview-x64
+          path: build/sunshine-payload/
+          if-no-files-found: error
+          retention-days: 7
+
+  installer:
+    needs: sunshine
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch Moonlight dependencies
+        shell: pwsh
+        run: |
+          git submodule update --init --recursive --jobs 4 moonlight-common-c/moonlight-common-c qmdnsengine/qmdnsengine app/SDL_GameControllerDB
+          if ($LASTEXITCODE -ne 0) { throw 'Submodule checkout failed' }
+          ./setup-deps.ps1
+      - uses: actions/download-artifact@v6
+        with:
+          name: sunshine-preview-x64
+          path: build/sunshine-payload
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.2'
+          arch: win64_msvc2022_64
+          cache: true
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@073e34d7c2ab4ae6961ed7cca690b3abd5ba5a7e'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Ensure installer compiler
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+          }
+      - name: Build independent preview and installer
+        shell: pwsh
+        run: ./scripts/build-preview-windows.ps1 -SunshinePayload ./build/sunshine-payload
+      - name: Test process manager on Windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/host-manager-test | Out-Null
+          Push-Location build/host-manager-test
+          try {
+            qmake ../../tests/sunshine-manager/sunshine-manager.pro CONFIG+=host_preview CONFIG+=release CONFIG-=debug_and_release DESTDIR=.
+            if ($LASTEXITCODE -ne 0) { throw 'Test configure failed' }
+            nmake
+            if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
+            # The controlled child is copied into a nested helper folder; deploy runtime DLLs there too.
+            New-Item -ItemType Directory -Force host/sunshine | Out-Null
+            Copy-Item ../preview-payload/*.dll host/sunshine/
+            ./sunshine-manager-test.exe
+            if ($LASTEXITCODE -ne 0) { throw 'Process management tests failed' }
+          } finally { Pop-Location }
+      - name: Check installation and bundled host
+        shell: pwsh
+        run: ./scripts/test-preview-windows.ps1
+      - uses: actions/upload-artifact@v6
+        if: success()
+        with:
+          name: MoonlightDeskPreview-Windows-x64
+          path: build/preview-installer/*
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: MoonlightDeskPreview-test-logs
+          path: |
+            build/preview-smoke/*.txt
+            build/preview-smoke/*.log
+          if-no-files-found: ignore
+          retention-days: 7

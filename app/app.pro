@@ -10,6 +10,12 @@ unix:!macx {
 
 include(../globaldefs.pri)
 
+# Independent identity for the integrated host preview, opt-in at build time.
+host_preview {
+    DEFINES += MOONLIGHT_HOST_PREVIEW
+    win32: TARGET = MoonlightDeskPreview
+}
+
 # Precompile QML files to avoid writing qmlcache on portable versions.
 # Since this binds the app against the Qt runtime version, we will only
 # do this for Windows and Mac (when disable-prebuilts is not defined),
@@ -199,6 +205,7 @@ SOURCES += \
     streaming/bandwidth.cpp \
     streaming/streamutils.cpp \
     backend/autoupdatechecker.cpp \
+    backend/sunshinemanager.cpp \
     path.cpp \
     settings/mappingmanager.cpp \
     gui/sdlgamepadkeynavigation.cpp \
@@ -237,6 +244,7 @@ HEADERS += \
     streaming/bandwidth.h \
     streaming/streamutils.h \
     backend/autoupdatechecker.h \
+    backend/sunshinemanager.h \
     path.h \
     settings/mappingmanager.h \
     gui/sdlgamepadkeynavigation.h \
@@ -549,6 +557,11 @@ win32 {
     QMAKE_TARGET_COMPANY = Moonlight Game Streaming Project
     QMAKE_TARGET_DESCRIPTION = Moonlight Game Streaming Client
     QMAKE_TARGET_PRODUCT = Moonlight
+    host_preview {
+        QMAKE_TARGET_COMPANY = coderleexl
+        QMAKE_TARGET_DESCRIPTION = Moonlight Desk Preview
+        QMAKE_TARGET_PRODUCT = Moonlight Desk Preview
+    }
 
     CONFIG -= embed_manifest_exe
     QMAKE_LFLAGS += /MANIFEST:embed /MANIFESTINPUT:$${PWD}/Moonlight.exe.manifest

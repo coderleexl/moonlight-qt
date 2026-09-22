@@ -7,3 +7,6 @@
 [submodule "app/SDL_GameControllerDB"]
 	path = app/SDL_GameControllerDB
 	url = https://github.com/gabomdq/SDL_GameControllerDB.git
+[submodule "third_party/sunshine"]
+	path = third_party/sunshine
+	url = https://github.com/LizardByte/Sunshine.git

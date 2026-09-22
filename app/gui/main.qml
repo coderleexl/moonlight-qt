@@ -8,6 +8,7 @@ import ComputerManager 1.0
 import AutoUpdateChecker 1.0
 import StreamingPreferences 1.0
 import SystemProperties 1.0
+import SunshineManager 1.0
 import SdlGamepadKeyNavigation 1.0
 
 ApplicationWindow {
@@ -22,7 +23,8 @@ ApplicationWindow {
     height: 680
     minimumWidth: 640
     minimumHeight: 480
-    title: "Moonlight"
+    readonly property bool hostPreview: Qt.application.name === "MoonlightDeskPreview"
+    title: hostPreview ? "Moonlight Desk Preview" : "Moonlight"
     font.pixelSize: 14
 
     // Session-only appearance preferences. Persistence belongs to P1.
@@ -236,7 +238,7 @@ ApplicationWindow {
                 spacing: 8
 
                 Label {
-                    text: window.compactNavigation ? "M" : "Moonlight"
+                    text: window.compactNavigation ? "M" : window.hostPreview ? "Moonlight Desk" : "Moonlight"
                     font.pixelSize: window.compactNavigation ? 22 : 20
                     font.weight: Font.DemiBold
                     Layout.fillWidth: true
@@ -255,6 +257,21 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     checked: stackView.currentItem instanceof PcView || stackView.currentItem instanceof AppView
                     onClicked: window.showComputers()
+                    Keys.onDownPressed: (hostButton.visible ? hostButton : settingsButton).forceActiveFocus(Qt.TabFocusReason)
+                    Keys.onRightPressed: window.focusPage()
+                }
+
+                NavigableToolButton {
+                    id: hostButton
+                    navigationItem: true
+                    objectName: "hostNavigation"
+                    text: qsTranslate("HostView", "This computer")
+                    iconSource: "qrc:/res/capability-chip.svg"
+                    display: window.compactNavigation ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                    Layout.fillWidth: true
+                    visible: SunshineManager.supported
+                    checked: stackView.currentItem instanceof HostView
+                    onClicked: navigateTo("qrc:/gui/HostView.qml", HostView)
                     Keys.onDownPressed: settingsButton.forceActiveFocus(Qt.TabFocusReason)
                     Keys.onRightPressed: window.focusPage()
                 }

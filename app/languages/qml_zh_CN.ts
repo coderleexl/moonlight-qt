@@ -1602,4 +1602,171 @@
             <translation>返回</translation>
         </message>
     </context>
+<context>
+    <name>HostView</name>
+    <message>
+        <location filename="../gui/HostView.qml" line="9"/>
+        <location filename="../gui/main.qml" line="267"/>
+        <location filename="../gui/main.qml" line="267"/>
+        <location filename="../gui/main.qml" line="267"/>
+        <source>This computer</source>
+        <translation>本机</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="23"/>
+        <source>Allow other Moonlight devices to connect to this computer using the built-in Sunshine host.</source>
+        <translation>通过内置 Sunshine 服务，让其他 Moonlight 设备连接这台电脑。</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="37"/>
+        <source>Hosting is currently available on Windows and macOS only</source>
+        <translation>目前仅支持在 Windows 和 macOS 上提供主机服务</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="37"/>
+        <source>Built-in host is not included in this build</source>
+        <translation>此构建未包含内置主机服务</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="37"/>
+        <source>Host running</source>
+        <translation>主机服务已启动</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="37"/>
+        <source>Starting host…</source>
+        <translation>正在启动主机服务…</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="37"/>
+        <source>Stopping host…</source>
+        <translation>正在停止主机服务…</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="37"/>
+        <source>Host could not start</source>
+        <translation>主机服务未能启动</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="37"/>
+        <source>Host stopped</source>
+        <translation>主机服务已停止</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="52"/>
+        <source>Local test only (127.0.0.1)</source>
+        <translation>仅本机测试（127.0.0.1）</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="58"/>
+        <source>Only this computer can connect. Turn this off while the host is stopped to allow LAN connections.</source>
+        <translation>仅允许本机连接。停止服务后关闭此选项，即可允许局域网连接。</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="58"/>
+        <source>Paired devices on your local network can connect. Automatic router port forwarding stays disabled.</source>
+        <translation>局域网内已配对的设备可以连接。路由器自动端口转发保持关闭。</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="69"/>
+        <source>Stop hosting</source>
+        <translation>停止服务</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="69"/>
+        <source>Start hosting</source>
+        <translation>启动服务</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="74"/>
+        <source>Configuration &amp; pairing</source>
+        <translation>配置与配对</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="80"/>
+        <source>Add this computer</source>
+        <translation>添加本机</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="89"/>
+        <source>For the first connection, create a host login in Configuration &amp; pairing, then add this computer and enter the pairing PIN in the host configuration.</source>
+        <translation>首次连接：在“配置与配对”中创建主机登录账号，然后添加本机，并在主机配置页面输入配对 PIN。</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="100"/>
+        <source>macOS permissions</source>
+        <translation>macOS 权限</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="104"/>
+        <source>Screen recording is required to share the desktop. Accessibility is required for remote keyboard and mouse input. Restart hosting after changing permissions.</source>
+        <translation>共享桌面需要屏幕录制权限，远程键鼠输入需要辅助功能权限。修改权限后请重新启动服务。</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="113"/>
+        <source>Screen recording</source>
+        <translation>屏幕录制</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="117"/>
+        <source>Accessibility</source>
+        <translation>辅助功能</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="122"/>
+        <source>This preview stops hosting when Moonlight exits. Streaming this screen back to itself creates a mirror effect; use another device to check picture quality and input.</source>
+        <translation>此预览版会在退出 Moonlight 时停止主机服务。本机串流会出现画面套娃；画质与输入效果请使用另一台设备验证。</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="136"/>
+        <source>Host log</source>
+        <translation>主机日志</translation>
+    </message>
+    <message>
+        <location filename="../gui/HostView.qml" line="141"/>
+        <source>Open log folder</source>
+        <translation>打开日志目录</translation>
+    </message>
+    <message>
+        <source>Host address: %1</source>
+        <translation>主机地址：%1</translation>
+    </message>
+    <message>
+        <source>For LAN connections on Windows, allow the bundled Sunshine through Windows Firewall on private networks. This preview runs while you are signed in; it does not install a system service.</source>
+        <translation>在 Windows 上使用局域网连接时，请允许内置 Sunshine 通过 Windows 防火墙的专用网络。此预览版在登录后运行，不会安装系统服务。</translation>
+    </message>
+</context>
+<context>
+    <name>SunshineManager</name>
+    <message>
+        <location filename="../backend/sunshinemanager.cpp" line="32"/>
+        <source>Unable to start the bundled Sunshine: %1</source>
+        <translation>无法启动内置 Sunshine：%1</translation>
+    </message>
+    <message>
+        <location filename="../backend/sunshinemanager.cpp" line="45"/>
+        <source>Sunshine exited (code %1). See the log for details.</source>
+        <translation>Sunshine 已退出（代码 %1），请查看日志。</translation>
+    </message>
+    <message>
+        <location filename="../backend/sunshinemanager.cpp" line="61"/>
+        <source>Sunshine did not become ready. Check permissions and the log, then retry.</source>
+        <translation>Sunshine 启动超时。请检查权限与日志后重试。</translation>
+    </message>
+    <message>
+        <location filename="../backend/sunshinemanager.cpp" line="148"/>
+        <source>The bundled Sunshine is missing. Build the integrated app first.</source>
+        <translation>未找到内置 Sunshine，请先构建整合版应用。</translation>
+    </message>
+    <message>
+        <location filename="../backend/sunshinemanager.cpp" line="155"/>
+        <source>Port %1 is already in use. Stop the other host service before starting the bundled one.</source>
+        <translation>端口 %1 已被占用，请先停止其他主机服务。</translation>
+    </message>
+    <message>
+        <location filename="../backend/sunshinemanager.cpp" line="160"/>
+        <source>Unable to create the Sunshine configuration directory.</source>
+        <translation>无法创建 Sunshine 配置目录。</translation>
+    </message>
+</context>
 </TS>

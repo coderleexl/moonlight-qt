@@ -29,6 +29,10 @@ AutoUpdateChecker::AutoUpdateChecker(QObject *parent) :
 
 void AutoUpdateChecker::start()
 {
+#ifdef MOONLIGHT_HOST_PREVIEW
+    // Upstream installers have a different identity and do not update this preview.
+    return;
+#endif
     if (!m_Nam) {
         Q_ASSERT(m_Nam);
         return;

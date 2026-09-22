@@ -2,7 +2,9 @@
 
 ## 桌面界面重构版
 
-本仓库是 [coderleexl/moonlight-qt](https://github.com/coderleexl/moonlight-qt)，基于 Moonlight Qt，面向远程办公并兼顾游戏串流。
+由 [@coderleexl](https://github.com/coderleexl) 维护的 Moonlight Qt 界面重构版本，面向远程办公并兼顾游戏串流，基于 [上游 Moonlight Qt](https://github.com/moonlight-stream/moonlight-qt)。
+
+[本仓库源码](https://github.com/coderleexl/moonlight-qt) · [问题反馈](https://github.com/coderleexl/moonlight-qt/issues)
 
 ### 运行界面预览
 
@@ -32,7 +34,7 @@ make release -j8
 open app/Moonlight.app
 ```
 
-首次准备依赖请参见下方 **Build Setup Steps**。此产物用于本地开发；分发打包仍使用原有构建脚本。
+首次准备依赖请参见下方 [Build Setup Steps](#build-setup-steps)。请使用本仓库源码构建此界面版本；下方上游安装包不包含本次界面改动。开发产物位于 `app/Moonlight.app`，分发打包仍使用原有构建脚本。
 
 ## 上游项目说明
 

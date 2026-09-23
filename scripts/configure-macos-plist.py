@@ -10,6 +10,8 @@ with open(source, 'rb') as stream:
 info.update(CFBundleExecutable=name, CFBundleDisplayName=name,
             CFBundleIdentifier=identifier, CFBundleVersion=version,
             CFBundleShortVersionString=version)
+if identifier == 'io.github.coderleexl.Desk':
+    info['CFBundleIconFile'] = 'desk'
 info['NSLocalNetworkUsageDescription'] = f'{name} uses the local network to connect to your other computers.'
 Path(destination).parent.mkdir(parents=True, exist_ok=True)
 with open(destination, 'wb') as stream:

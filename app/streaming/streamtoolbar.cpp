@@ -17,9 +17,9 @@ QString tr(const char* text)
 {
     return QCoreApplication::translate("StreamToolbar", text);
 }
-constexpr int ExpandedWidth = 552;
-constexpr int ExpandedHeight = 64;
-constexpr int CollapsedHeight = 26;
+constexpr int ExpandedWidth = 480;
+constexpr int ExpandedHeight = 44;
+constexpr int CollapsedHeight = 20;
 
 struct RestoreGlContext {
     SDL_Window* window = SDL_GL_GetCurrentWindow();
@@ -55,7 +55,7 @@ StreamToolbar::StreamToolbar(SDL_Window* streamWindow, bool dark)
         return;
     }
 #ifndef Q_OS_DARWIN
-    SDL_SetWindowOpacity(m_Window, 0.94f);
+    SDL_SetWindowOpacity(m_Window, 0.80f);
 #endif
 }
 
@@ -76,6 +76,9 @@ void StreamToolbar::setExpanded(bool expanded)
 {
     m_Expanded = expanded;
     m_Hover = m_Pressed = m_KeyboardButton = -1;
+#ifndef Q_OS_DARWIN
+    if (m_Window) SDL_SetWindowOpacity(m_Window, m_Expanded ? 0.88f : 0.80f);
+#endif
     sync(m_AbsoluteMouse, m_Fullscreen);
     paint();
 }
@@ -102,7 +105,7 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
         scale = screens[display]->devicePixelRatio();
     }
 #endif
-    m_Width = m_Expanded ? ExpandedWidth : 64;
+    m_Width = m_Expanded ? ExpandedWidth : 48;
     m_Scale = qMin(scale, float(w) / float(m_Width + 16));
     int desiredW = qMax(1, qRound(m_Width * m_Scale));
     int desiredH = qMax(1, qRound((m_Expanded ? ExpandedHeight : CollapsedHeight) * m_Scale));
@@ -113,7 +116,7 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
         repaint = true;
     }
     int newX = x + (w - desiredW) / 2;
-    int newY = y + qRound(8 * m_Scale);
+    int newY = y + qRound(6 * m_Scale);
     // Keep the tab reachable when the window is partly off-screen or below a notch.
     SDL_Rect bounds;
     if (SDL_GetDisplayUsableBounds(display, &bounds) == 0) {
@@ -165,11 +168,11 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
 QRect StreamToolbar::buttonRect(int index) const
 {
     if (index == 4) {
-        return QRect(516, 18, 28, 28);
+        return QRect(448, 8, 26, 28);
     }
-    const int x[] = {8, 142, 254, 388};
-    const int widths[] = {130, 108, 130, 120};
-    return QRect(x[index], 8, widths[index], 48);
+    const int x[] = {6, 126, 224, 348};
+    const int widths[] = {116, 94, 120, 94};
+    return QRect(x[index], 6, widths[index], 32);
 }
 
 int StreamToolbar::hitTest(int x, int y) const
@@ -314,12 +317,12 @@ void StreamToolbar::paint()
     p.setRenderHint(QPainter::Antialiasing);
     p.scale(double(image.width()) / m_Width, double(image.height()) / (m_Expanded ? ExpandedHeight : CollapsedHeight));
     const int height = m_Expanded ? ExpandedHeight : CollapsedHeight;
-    const qreal radius = qMin(16, height / 2);
+    const qreal radius = qMin(12, height / 2);
     QLinearGradient sheen(0, 0, 0, height);
 #ifdef Q_OS_DARWIN
-    sheen.setColorAt(0, m_Dark ? QColor(255, 255, 255, 20) : QColor(255, 255, 255, 100));
-    sheen.setColorAt(1, m_Dark ? QColor(255, 255, 255, 3) : QColor(255, 255, 255, 26));
-    p.setPen(QColor(255, 255, 255, m_Dark ? 38 : 130));
+    sheen.setColorAt(0, m_Dark ? QColor(255, 255, 255, 12) : QColor(255, 255, 255, 48));
+    sheen.setColorAt(1, m_Dark ? QColor(255, 255, 255, 2) : QColor(255, 255, 255, 10));
+    p.setPen(QColor(255, 255, 255, m_Dark ? 30 : 100));
 #else
     image.fill(bg);
     sheen.setColorAt(0, bg.lighter(110));
@@ -340,7 +343,7 @@ void StreamToolbar::paint()
         p.drawPath(path);
     };
     if (!m_Expanded) {
-        chevron(32, 13, false);
+        chevron(m_Width / 2, height / 2, false);
     }
     else {
         const QString labels[] = {m_AbsoluteMouse ? tr("Mouse: Desktop") : tr("Mouse: Game"),
@@ -349,8 +352,8 @@ void StreamToolbar::paint()
         for (int i = 0; i < 5; i++) {
             const QRect r = buttonRect(i);
             p.setPen(i == m_KeyboardButton ? QPen(accent, 1.5) : QPen(Qt::NoPen));
-            p.setBrush(i == m_Hover ? QColor(m_Dark ? "#394653" : "#DDEBFA") : QColor(255, 255, 255, m_Dark ? 8 : 35));
-            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 10, 10);
+            p.setBrush(i == m_Hover ? (m_Dark ? QColor(90, 135, 170, 90) : QColor(190, 220, 250, 140)) : QColor(255, 255, 255, m_Dark ? 4 : 16));
+            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 8, 8);
             if (i == 4) {
                 chevron(r.center().x(), r.center().y(), true);
                 continue;
@@ -358,7 +361,7 @@ void StreamToolbar::paint()
             const QColor ink = i == 3 ? QColor(m_Dark ? "#FF9999" : "#C13C3C") : accent;
             p.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             p.setBrush(Qt::NoBrush);
-            const int x = r.x() + 12, y = r.center().y();
+            const int x = r.x() + 10, y = r.center().y();
             if (i == 0) {
                 p.drawRoundedRect(QRect(x, y - 9, 12, 18), 5, 5);
                 p.drawLine(x + 6, y - 5, x + 6, y - 1);
@@ -377,7 +380,7 @@ void StreamToolbar::paint()
                 p.drawLine(x + 7, y - 9, x + 7, y - 1);
             }
             p.setPen(i == 3 ? ink : fg);
-            QRect textRect = r.adjusted(34, 0, -5, 0);
+            QRect textRect = r.adjusted(30, 0, -5, 0);
             p.drawText(textRect, Qt::AlignCenter, p.fontMetrics().elidedText(labels[i], Qt::ElideRight, textRect.width()));
         }
     }

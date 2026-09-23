@@ -27,7 +27,7 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\Desk.exe
-SetupIconFile=..\..\app\moonlight.ico
+SetupIconFile=..\..\app\desk.ico
 CloseApplicationsFilter=Desk.exe,MoonlightDeskPreview.exe
 RestartApplications=no
 

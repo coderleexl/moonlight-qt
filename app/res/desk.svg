@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Desk</title>
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="#289BE8"/>
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M82 68h38c40 0 66 23 66 60s-26 60-66 60H82a8 8 0 0 1-8-8V76a8 8 0 0 1 8-8zm16 23v74h21c27 0 43-13 43-37s-16-37-43-37z"/>
+</svg>

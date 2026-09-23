@@ -51,8 +51,8 @@ private slots:
                 e.type = SDL_MOUSEBUTTONDOWN;
                 e.button.windowID = panelId;
                 e.button.button = SDL_BUTTON_LEFT;
-                const int centers[] = {73, 196, 319, 448};
-                e.button.x = centers[index] * width / 552;
+                const int centers[] = {64, 173, 284, 395};
+                e.button.x = centers[index] * width / 480;
                 e.button.y = height / 2;
                 toolbar.handleEvent(e);
                 e.type = SDL_MOUSEBUTTONUP;

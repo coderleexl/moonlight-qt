@@ -1887,7 +1887,11 @@ void Session::exec()
 
     m_InputHandler->setWindow(m_Window);
 
+#ifdef MOONLIGHT_HOST_PREVIEW
+    QSvgRenderer svgIconRenderer(QString(":/res/desk.svg"));
+#else
     QSvgRenderer svgIconRenderer(QString(":/res/moonlight.svg"));
+#endif
     QImage svgImage(ICON_SIZE, ICON_SIZE, QImage::Format_RGBA8888);
     svgImage.fill(0);
 

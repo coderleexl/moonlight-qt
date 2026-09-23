@@ -564,6 +564,7 @@ win32 {
     QMAKE_TARGET_DESCRIPTION = Moonlight Game Streaming Client
     QMAKE_TARGET_PRODUCT = Moonlight
     host_preview {
+        RC_ICONS = desk.ico
         QMAKE_TARGET_COMPANY = coderleexl
         QMAKE_TARGET_DESCRIPTION = Desk
         QMAKE_TARGET_PRODUCT = Desk
@@ -582,6 +583,7 @@ macx {
     }
 
     APP_BUNDLE_RESOURCES.files = moonlight.icns
+    host_preview: APP_BUNDLE_RESOURCES.files = desk.icns
     APP_BUNDLE_RESOURCES.path = Contents/Resources
 
     APP_BUNDLE_PLIST.files = $$QMAKE_INFO_PLIST

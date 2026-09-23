@@ -237,15 +237,27 @@ ApplicationWindow {
                 anchors.bottomMargin: 16
                 spacing: 8
 
-                Label {
-                    text: window.compactNavigation ? (window.hostPreview ? "D" : "M") : window.hostPreview ? "Desk" : "Moonlight"
-                    font.pixelSize: window.compactNavigation ? 22 : 20
-                    font.weight: Font.DemiBold
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.leftMargin: window.compactNavigation ? 0 : 20
-                    Layout.rightMargin: window.compactNavigation ? 0 : 12
+                    Layout.leftMargin: window.compactNavigation ? 10 : 16
+                    Layout.rightMargin: window.compactNavigation ? 10 : 12
                     Layout.bottomMargin: 16
-                    horizontalAlignment: window.compactNavigation ? Text.AlignHCenter : Text.AlignLeft
+                    spacing: 10
+                    Image {
+                        source: window.hostPreview ? "qrc:/res/desk.svg" : "qrc:/res/moonlight.svg"
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        sourceSize: Qt.size(64, 64)
+                        fillMode: Image.PreserveAspectFit
+                        Accessible.ignored: true
+                    }
+                    Label {
+                        visible: !window.compactNavigation
+                        text: window.hostPreview ? "Desk" : "Moonlight"
+                        font.pixelSize: 20
+                        font.weight: Font.DemiBold
+                        Layout.fillWidth: true
+                    }
                 }
 
                 NavigableToolButton {

@@ -27,16 +27,19 @@ bool checkToolbarNativeState(SDL_Window* panel, SDL_Window* stream)
         window.level < windowFor(stream).level) {
         return false;
     }
+    bool hasGlass = false;
+    bool hasArtwork = false;
     for (NSView* view in window.contentView.subviews) {
         if ([view isKindOfClass:NSVisualEffectView.class]) {
             NSVisualEffectView* glass = (NSVisualEffectView*)view;
             if (glass.blendingMode != NSVisualEffectBlendingModeBehindWindow) return false;
-            for (NSView* child in glass.subviews) {
-                if ([child isKindOfClass:NSImageView.class] && ((NSImageView*)child).image) return true;
-            }
+            hasGlass = glass.alphaValue < 1.0 && glass.alphaValue > 0.0;
+        }
+        if ([view isKindOfClass:NSImageView.class] && ((NSImageView*)view).image) {
+            hasArtwork = view.alphaValue == 1.0;
         }
     }
-    return false;
+    return hasGlass && hasArtwork;
 }
 
 void saveToolbarNativeScreenshot(SDL_Window* panel, const char* path)

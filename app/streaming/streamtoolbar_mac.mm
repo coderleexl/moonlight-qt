@@ -61,7 +61,7 @@ bool syncStreamToolbarMac(SDL_Window* toolbar, SDL_Window* stream, bool dark)
     NSView* content = panel.contentView;
     content.wantsLayer = YES;
     content.layer.backgroundColor = NSColor.clearColor.CGColor;
-    content.layer.cornerRadius = MIN(16, content.bounds.size.height / 2);
+    content.layer.cornerRadius = MIN(12, content.bounds.size.height / 2);
     content.layer.masksToBounds = YES;
 
     DeskGlassView* glass = (DeskGlassView*)[content viewWithTag:GlassTag];
@@ -77,10 +77,12 @@ bool syncStreamToolbarMac(SDL_Window* toolbar, SDL_Window* stream, bool dark)
         artwork.tag = ArtworkTag;
         artwork.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         artwork.imageScaling = NSImageScaleAxesIndependently;
-        [glass addSubview:artwork];
+        // Keep text/icons outside the translucent material so they stay crisp.
+        [content addSubview:artwork];
         [artwork release];
         repaint = true;
     }
+    glass.alphaValue = dark ? 0.68 : 0.56;
     glass.appearance = [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
     // Cocoa native visibility and SDL renderer window recreation can leave
     // SDL_WINDOW_HIDDEN stale. Restore native stacking without stealing focus.

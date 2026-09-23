@@ -164,7 +164,7 @@ void StreamingPreferences::reload()
                                                   static_cast<int>(RendererSelection::RS_AUTO)).toInt());
     windowMode = static_cast<WindowMode>(settings.value(SER_WINDOWMODE,
                                                         // Try to load from the old preference value too
-                                                        static_cast<int>(settings.value(SER_FULLSCREEN, true).toBool() ?
+                                                        static_cast<int>(settings.value(SER_FULLSCREEN, false).toBool() ?
                                                                              recommendedFullScreenMode : WindowMode::WM_WINDOWED)).toInt());
     uiDisplayMode = static_cast<UIDisplayMode>(settings.value(SER_UIDISPLAYMODE,
                                                static_cast<int>(settings.value(SER_STARTWINDOWED, true).toBool() ? UIDisplayMode::UI_WINDOWED

@@ -1,5 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <title>Desk</title>
-  <rect x="16" y="16" width="224" height="224" rx="52" fill="#289BE8"/>
-  <path fill="#FFFFFF" fill-rule="evenodd" d="M82 68h38c40 0 66 23 66 60s-26 60-66 60H82a8 8 0 0 1-8-8V76a8 8 0 0 1 8-8zm16 23v74h21c27 0 43-13 43-37s-16-37-43-37z"/>
+  <title>Desk — coastal desktop</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="47" x2="0" y2="139" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A3D9F7"/>
+      <stop offset="1" stop-color="#F0FAFE"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="53" y1="125" x2="175" y2="174" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A5E2EC"/>
+      <stop offset="1" stop-color="#459ED6"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="39" x2="0" y2="186" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E3EEF5"/>
+      <stop offset="1" stop-color="#AFBFCE"/>
+    </linearGradient>
+    <linearGradient id="stand" x1="96" y1="185" x2="160" y2="215" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9BAFBE"/>
+      <stop offset="1" stop-color="#DDEAF2"/>
+    </linearGradient>
+  </defs>
+  <path d="M118 181h20v13c0 7 12 12 25 15 4 1 5 6 0 6H93c-5 0-4-5 0-6 13-3 25-8 25-15z" fill="url(#stand)"/>
+  <rect x="16" y="39" width="224" height="147" rx="15" fill="url(#frame)"/>
+  <rect x="17" y="40" width="222" height="145" rx="14" fill="none" stroke="#8EA8BD" stroke-opacity=".55"/>
+  <rect x="21" y="44" width="214" height="137" rx="11" fill="#29465F"/>
+  <rect x="25" y="48" width="206" height="129" rx="8" fill="url(#sky)"/>
+  <path d="M25 124c38-4 62 3 100 0s73-4 106-1v46a8 8 0 0 1-8 8H33a8 8 0 0 1-8-8z" fill="url(#sea)"/>
+  <path d="M138 124l21-12q5-3 10-1l16 6 22-18q4-3 9 0l15 9v19z" fill="#A9CFE1"/>
+  <path d="M177 125l29-11q5-2 10 0l15 5v9z" fill="#82B7D2"/>
+  <path d="M25 101l21-10q5-2 10 1l25 21 28 14q9 4 4 8l-19 12-37 11-32 3z" fill="#58ABB9"/>
+  <path d="M25 122l31-8 31 15 22 3-26 17-34 10-24 2z" fill="#388FAB"/>
+  <path d="M104 133c-12 8-21 12-39 16-17 3-29 10-40 15" fill="none" stroke="#D8F4F2" stroke-width="3" stroke-linecap="round"/>
+  <path d="M156 143h38m-70 13h30" fill="none" stroke="#DAF1FB" stroke-opacity=".65" stroke-width="2" stroke-linecap="round"/>
 </svg>

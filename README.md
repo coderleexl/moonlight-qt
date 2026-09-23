@@ -18,7 +18,7 @@
 
 ### 本次界面更新
 
-- Desk 使用简约蓝白几何图标，统一应用图标、任务栏、主窗口、串流窗口和安装包。SVG 源文件为 [`app/res/desk.svg`](app/res/desk.svg)；修改后执行 `python3 scripts/generate-desk-icons.py` 生成 ICO、ICNS 和 PNG 预览（需要 Qt 开发工具与 Pillow）。
+- Desk 使用浅蓝海湾电脑图标，统一应用图标、任务栏、主窗口、串流窗口和安装包。SVG 源文件为 [`app/res/desk.svg`](app/res/desk.svg)；修改后执行 `python3 scripts/generate-desk-icons.py` 生成 ICO、ICNS 和 PNG 预览（需要 Qt 开发工具与 Pillow）。
 
 - 蓝白浅色与简约黑灰深色主题，默认窗口为 1100 × 680；固定侧栏、设备列表与详情区支持窗口缩放。
 - **连接桌面**直接启动或恢复主机提供的 `Desktop` 应用，独立于直启应用设置；其他应用正在运行时保留退出确认。未找到 `Desktop` 时提示在 Sunshine 中添加。

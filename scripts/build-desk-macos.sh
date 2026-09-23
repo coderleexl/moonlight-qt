@@ -23,6 +23,12 @@ qmake -r "$repo_root/moonlight-qt.pro" CONFIG+=host_preview QMAKE_APPLE_DEVICE_A
 make release -j"$jobs"
 app_bundle="$PWD/app/Desk.app"
 macdeployqt "$app_bundle" -qmldir="$repo_root/app/gui" -no-codesign
+# Qt deploys optional database drivers with machine-specific ODBC/PostgreSQL/
+# Mimer dependencies. Desk does not use them; keep only self-contained SQLite.
+for plugin in "$app_bundle"/Contents/PlugIns/sqldrivers/*.dylib; do
+  [[ -f "$plugin" ]] || continue
+  [[ "$(basename "$plugin")" == libqsqlite.dylib ]] || rm "$plugin"
+done
 mkdir -p "$app_bundle/Contents/Helpers" "$app_bundle/Contents/Resources/licenses"
 ditto "$repo_root/build/desk-sunshine-stage/Sunshine.app" "$app_bundle/Contents/Helpers/Sunshine.app"
 cp "$repo_root/LICENSE" "$app_bundle/Contents/Resources/licenses/Moonlight-LICENSE.txt"

@@ -51,6 +51,10 @@ jobs:
           apt-get install -y ca-certificates git sudo curl xz-utils unzip python3 python3-cryptography
           echo 'DESK_TEST_PYTHON=/usr/bin/python3' >> "$GITHUB_ENV"
       - uses: actions/checkout@v5
+      - name: Trust this checkout in the Debian container
+        if: matrix.package == 'linux-debian13'
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Fetch client and pinned Sunshine source
         shell: bash
         run: bash scripts/fetch-desk-source.sh '${{ matrix.platform }}'

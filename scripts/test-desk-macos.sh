@@ -20,7 +20,12 @@ for path in root.rglob('*'):
         kind = subprocess.check_output(['file', '-b', str(path)], text=True)
         if 'Mach-O' in kind:
             libs = subprocess.check_output(['otool', '-L', str(path)], text=True)
-            assert not any(prefix in libs for prefix in ('/opt/homebrew/', '/usr/local/', '/Users/runner/')), libs
+            # otool prints the inspected file's absolute path as an unindented
+            # heading. Only indented entries describe linked libraries.
+            dependencies = [line.strip() for line in libs.splitlines() if line.startswith('\t')]
+            external = [line for line in dependencies
+                        if line.startswith(('/opt/homebrew/', '/usr/local/', '/Users/runner/'))]
+            assert not external, f'{path}: external dependencies: {external}'
 PY
 python3 scripts/test-desk-unix.py "$app/Contents/MacOS/Desk" \
   "$app/Contents/Helpers/Sunshine.app/Contents/MacOS/Sunshine" \

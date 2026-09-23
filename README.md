@@ -101,7 +101,7 @@ Mac Apple Silicon 客户端开发（Qt 6.11，先准备上游 v17 macOS 依赖�
 bash scripts/dev-macos.sh
 ```
 
-此命令只编译当前 Mac 的客户端，然后正常退出正在运行的 Desk、更新 `/Applications/Desk.app`、刷新 Spotlight 并启动新版。构建产物位于 `build/desk-macos-local/app/Desk.app`。已经编译完成时可用 `bash scripts/dev-macos.sh --install-only` 安装；退出超时会停止更新，不会强制杀进程或覆盖原版 Moonlight。
+此命令只编译当前 Mac 的客户端，然后正常退出正在运行的 Desk、更新 `/Applications/Desk.app`、刷新 Spotlight 并启动新版。构建产物位于 `build/desk-macos-local.noindex/app/Desk.app`。开发产物使用 `.noindex` 目录，安装后注销开发副本的启动注册，避免与 `/Applications/Desk.app` 混淆。已经编译完成时可用 `bash scripts/dev-macos.sh --install-only` 安装；退出超时会停止更新，不会强制杀进程或覆盖原版 Moonlight。
 
 完整安装包使用对应平台的脚本，所需依赖见工作流：
 

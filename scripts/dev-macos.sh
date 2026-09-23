@@ -3,28 +3,34 @@
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'This script is for local macOS development.' >&2; exit 2; }
 cd "$(dirname "$0")/.."
+# Keep development bundles out of Spotlight; migrate the existing build in place.
+if [[ -d build/desk-macos-local && ! -e build/desk-macos-local.noindex ]]; then
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -u "$PWD/build/desk-macos-local/app/Desk.app" || true
+  mv build/desk-macos-local build/desk-macos-local.noindex
+fi
 case "${1:-}" in
   '')
-    mkdir -p build/desk-macos-local
+    mkdir -p build/desk-macos-local.noindex
     python3 scripts/prepare-desk-translations.py
     qmake -r moonlight-qt.pro CONFIG+=host_preview "QMAKE_APPLE_DEVICE_ARCHS=$(uname -m)" \
-      -o build/desk-macos-local/Makefile
+      -o build/desk-macos-local.noindex/Makefile
     # In-source generated moc files can suppress shadow-build moc rules.
-    make -C build/desk-macos-local/app -f Makefile.Release compiler_moc_source_make_all
+    make -C build/desk-macos-local.noindex/app -f Makefile.Release compiler_moc_source_make_all
     # qmake changes VERSION_STR flags without invalidating existing objects.
     # Rebuild its three consumers when the version changes (or no stamp exists).
-    if ! cmp -s app/version.txt build/desk-macos-local/.compiled-version; then
-      rm -f build/desk-macos-local/app/release/main.o \
-        build/desk-macos-local/app/release/autoupdatechecker.o \
-        build/desk-macos-local/app/release/systemproperties.o
+    if ! cmp -s app/version.txt build/desk-macos-local.noindex/.compiled-version; then
+      rm -f build/desk-macos-local.noindex/app/release/main.o \
+        build/desk-macos-local.noindex/app/release/autoupdatechecker.o \
+        build/desk-macos-local.noindex/app/release/systemproperties.o
     fi
-    make -C build/desk-macos-local release -j8
-    cp app/version.txt build/desk-macos-local/.compiled-version
+    make -C build/desk-macos-local.noindex release -j8
+    cp app/version.txt build/desk-macos-local.noindex/.compiled-version
     ;;
   --install-only) ;;
   *) echo 'Usage: bash scripts/dev-macos.sh [--install-only]' >&2; exit 2 ;;
 esac
-source_app="$PWD/build/desk-macos-local/app/Desk.app"
+source_app="$PWD/build/desk-macos-local.noindex/app/Desk.app"
 test -x "$source_app/Contents/MacOS/Desk"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$source_app/Contents/Info.plist")" = io.github.coderleexl.Desk
 
@@ -56,6 +62,7 @@ while running():
 PY
 
 ditto "$source_app" /Applications/Desk.app
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$source_app" || true
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Desk.app
 mdimport /Applications/Desk.app
 cmp "$source_app/Contents/MacOS/Desk" /Applications/Desk.app/Contents/MacOS/Desk

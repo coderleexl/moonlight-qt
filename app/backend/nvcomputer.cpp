@@ -1,4 +1,5 @@
 #include "nvcomputer.h"
+#include "deskaccess.h"
 #include "nvapp.h"
 #include "settings/compatfetcher.h"
 
@@ -9,6 +10,7 @@
 
 #define SER_NAME "hostname"
 #define SER_UUID "uuid"
+#define SER_DESK_ID "deskdeviceid"
 #define SER_MAC "mac"
 #define SER_LOCALADDR "localaddress"
 #define SER_LOCALPORT "localport"
@@ -27,6 +29,7 @@ NvComputer::NvComputer(QSettings& settings)
 {
     this->name = settings.value(SER_NAME).toString();
     this->uuid = settings.value(SER_UUID).toString();
+    this->deskDeviceId = settings.value(SER_DESK_ID).toString();
     this->hasCustomName = settings.value(SER_CUSTOMNAME).toBool();
     this->macAddress = settings.value(SER_MAC).toByteArray();
     this->localAddress = NvAddress(settings.value(SER_LOCALADDR).toString(),
@@ -81,6 +84,7 @@ void NvComputer::serialize(QSettings& settings, bool serializeApps) const
     settings.setValue(SER_NAME, name);
     settings.setValue(SER_CUSTOMNAME, hasCustomName);
     settings.setValue(SER_UUID, uuid);
+    settings.setValue(SER_DESK_ID, deskDeviceId);
     settings.setValue(SER_MAC, macAddress);
     settings.setValue(SER_LOCALADDR, localAddress.address());
     settings.setValue(SER_LOCALPORT, localAddress.port());
@@ -110,6 +114,7 @@ bool NvComputer::isEqualSerialized(const NvComputer &that) const
     return this->name == that.name &&
            this->hasCustomName == that.hasCustomName &&
            this->uuid == that.uuid &&
+           this->deskDeviceId == that.deskDeviceId &&
            this->macAddress == that.macAddress &&
            this->localAddress == that.localAddress &&
            this->remoteAddress == that.remoteAddress &&
@@ -138,6 +143,9 @@ NvComputer::NvComputer(NvHTTP& http, QString serverInfo)
     }
 
     this->uuid = NvHTTP::getXmlString(serverInfo, "uniqueid");
+    const QString deskId = NvHTTP::getXmlString(serverInfo, "DeskDeviceId");
+    if (NvHTTP::getXmlString(serverInfo, "DeskAccessVersion") == "1" && DeskAccess::validId(deskId))
+        this->deskDeviceId = deskId;
     QString newMacString = NvHTTP::getXmlString(serverInfo, "mac");
     if (newMacString != "00:00:00:00:00:00") {
         QStringList macOctets = newMacString.split(':');
@@ -567,6 +575,7 @@ bool NvComputer::update(const NvComputer& that)
     ASSIGN_IF_CHANGED(appVersion);
     ASSIGN_IF_CHANGED(isSupportedServerVersion);
     ASSIGN_IF_CHANGED(isNvidiaServerSoftware);
+    ASSIGN_IF_CHANGED(deskDeviceId);
     ASSIGN_IF_CHANGED(maxLumaPixelsHEVC);
     ASSIGN_IF_CHANGED(gpuModel);
     ASSIGN_IF_CHANGED_AND_NONNULL(serverCert);

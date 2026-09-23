@@ -69,6 +69,7 @@ try:
                     raise RuntimeError('Bundled Sunshine web interface did not become ready')
             finally:
                 stop(process)
+    subprocess.run([sys.executable, str(Path(__file__).with_name('test-desk-access.py')), str(helper)], check=True)
     (logs / 'result.txt').write_text('Desk GUI and bundled Sunshine web startup passed. GPU streaming was not tested.\n')
     print((logs / 'result.txt').read_text())
 finally:

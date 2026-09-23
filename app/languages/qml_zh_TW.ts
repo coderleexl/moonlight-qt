@@ -543,7 +543,35 @@
             <source>Closing this dialog does not cancel pairing on the host.</source>
             <translation>關閉此視窗不會取消主機端的配對。</translation>
         </message>
-    </context>
+        <message>
+        <source>More than one device has this ID. Select the device from the list or use its IP address.</source>
+        <translation>有多台裝置使用相同識別碼，請從清單選擇裝置，或使用 IP 位址連線。</translation>
+    </message>
+    <message>
+        <source>Device not found. Start sharing on the other computer and check that both devices are on the same local network. If discovery is blocked, add its IP address and port instead.</source>
+        <translation>找不到裝置。請在對方電腦開啟共享，並確認兩台裝置位於同一區域網路。若網路阻擋自動探索，可新增對方的 IP 位址與連接埠。</translation>
+    </message>
+    <message>
+        <source>Access password required</source>
+        <translation>需要存取密碼</translation>
+    </message>
+    <message>
+        <source>Connect to %1</source>
+        <translation>連線 %1</translation>
+    </message>
+    <message>
+        <source>Enter the access password shown on the other computer's This computer page. Authorization is remembered for future connections.</source>
+        <translation>輸入對方電腦「本機」頁面顯示的存取密碼。授權成功後，下次可以直接連線。</translation>
+    </message>
+    <message>
+        <source>Access password</source>
+        <translation>存取密碼</translation>
+    </message>
+    <message>
+        <source>Authorizing this device…</source>
+        <translation>正在授權此裝置…</translation>
+    </message>
+</context>
     <context>
         <name>PendingPairingTask</name>
         <message>
@@ -571,7 +599,15 @@
             <source>GeForce Experience returned error: %1</source>
             <translation>GeForce Experience 傳回錯誤：%1</translation>
         </message>
-    </context>
+        <message>
+        <source>The access password is incorrect. Please try again.</source>
+        <translation>存取密碼不正確，請重試。</translation>
+    </message>
+    <message>
+        <source>Host returned error: %1</source>
+        <translation>主機傳回錯誤：%1</translation>
+    </message>
+</context>
     <context>
         <name>PendingQuitTask</name>
         <message>
@@ -1601,7 +1637,15 @@
             <source>Back</source>
             <translation>返回</translation>
         </message>
-    </context>
+        <message>
+        <source>Connect to a device</source>
+        <translation>連線裝置</translation>
+    </message>
+    <message>
+        <source>Enter a device ID or IP address (Desk uses port 48989):</source>
+        <translation>輸入裝置識別碼或 IP 位址（Desk 連接埠為 48989）：</translation>
+    </message>
+</context>
 <context>
     <name>HostView</name>
     <message>
@@ -1739,6 +1783,50 @@
         <source>On Linux, screen sharing may require approval in your desktop portal. Remote input requires uinput access; sign out and back in after installing Desk if input is unavailable.</source>
         <translation>在 Linux 上，共用螢幕可能需要在桌面入口中授權。遠端輸入需要 uinput 權限；安裝 Desk 後若無法輸入，請登出並重新登入。</translation>
     </message>
+    <message>
+        <source>Share your desktop with another Desk on the same local network. Start sharing, then give the other person your device ID and access password.</source>
+        <translation>與同一區域網路內的另一台 Desk 共享桌面。開啟共享後，將裝置識別碼與存取密碼告知對方即可。</translation>
+    </message>
+    <message>
+        <source>Advanced host settings</source>
+        <translation>主機進階設定</translation>
+    </message>
+    <message>
+        <source>Device ID</source>
+        <translation>裝置識別碼</translation>
+    </message>
+    <message>
+        <source>Copy ID</source>
+        <translation>複製識別碼</translation>
+    </message>
+    <message>
+        <source>Access password</source>
+        <translation>存取密碼</translation>
+    </message>
+    <message>
+        <source>Copy password</source>
+        <translation>複製密碼</translation>
+    </message>
+    <message>
+        <source>Show password</source>
+        <translation>顯示密碼</translation>
+    </message>
+    <message>
+        <source>Reset access</source>
+        <translation>重設存取權限</translation>
+    </message>
+    <message>
+        <source>Only share the password with people you trust. Reset access while sharing is stopped to change the password and revoke saved authorizations.</source>
+        <translation>請僅向信任的人提供密碼。停止共享後，可重設存取權限，更換密碼並撤銷已儲存的授權。</translation>
+    </message>
+    <message>
+        <source>Change the access password and revoke all saved authorizations? Previously connected devices will need the new password.</source>
+        <translation>更換存取密碼並撤銷所有已儲存的授權？先前連線過的裝置將需要輸入新密碼。</translation>
+    </message>
+    <message>
+        <source>Unable to reset access. Stop sharing and check that the host configuration is writable.</source>
+        <translation>無法重設存取權限。請先停止共享，並確認主機設定目錄可寫入。</translation>
+    </message>
 </context>
 <context>
     <name>SunshineManager</name>
@@ -1771,6 +1859,10 @@
         <location filename="../backend/sunshinemanager.cpp" line="160"/>
         <source>Unable to create the Sunshine configuration directory.</source>
         <translation>無法建立 Sunshine 設定目錄。</translation>
+    </message>
+    <message>
+        <source>Unable to read or save this computer's access credentials.</source>
+        <translation>無法讀取或儲存本機的存取憑證。</translation>
     </message>
 </context>
 </TS>

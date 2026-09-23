@@ -145,6 +145,7 @@ public:
     void setAddress(NvAddress address);
     void setHttpsPort(uint16_t port);
     void setTrueUid(bool useTrueUid);
+    void setPairingSessionId(const QString& id) { m_PairingSessionId = id; }
 
     NvAddress address();
 
@@ -199,4 +200,5 @@ private:
     QNetworkAccessManager* m_Nam;
     QSslCertificate m_ServerCert;
     bool m_UseTrueUid;
+    QString m_PairingSessionId;
 };

@@ -584,8 +584,14 @@ public:
           m_Computer(computer),
           m_Pin(pin)
     {
-        connect(this, &PendingPairingTask::pairingCompleted,
-                computerManager, &ComputerManager::pairingCompleted);
+        connect(this, &PendingPairingTask::pairingCompleted, computerManager,
+                [computerManager](NvComputer* pairedComputer, const QString& error) {
+            {
+                QWriteLocker lock(&pairedComputer->lock);
+                pairedComputer->pairingInProgress = false;
+            }
+            emit computerManager->pairingCompleted(pairedComputer, error);
+        });
     }
 
 signals:
@@ -597,11 +603,18 @@ private:
         NvPairingManager pairingManager(m_Computer);
 
         try {
-           NvPairingManager::PairState result = pairingManager.pair(m_Computer->appVersion, m_Pin, m_Computer->serverCert);
+           QSslCertificate serverCertificate;
+           QString appVersion;
+           {
+               QReadLocker lock(&m_Computer->lock);
+               appVersion = m_Computer->appVersion;
+           }
+           NvPairingManager::PairState result = pairingManager.pair(appVersion, m_Pin, serverCertificate);
+           m_Pin.clear();
            switch (result)
            {
            case NvPairingManager::PairState::PIN_WRONG:
-               emit pairingCompleted(m_Computer, tr("The PIN from the PC didn't match. Please try again."));
+               emit pairingCompleted(m_Computer, (m_Computer->deskDeviceId.isEmpty() ? tr("The PIN from the PC didn't match. Please try again.") : tr("The access password is incorrect. Please try again.")));
                break;
            case NvPairingManager::PairState::FAILED:
                if (m_Computer->currentGameId != 0) {
@@ -615,6 +628,11 @@ private:
                emit pairingCompleted(m_Computer, tr("Another pairing attempt is already in progress."));
                break;
            case NvPairingManager::PairState::PAIRED:
+               {
+                   QWriteLocker lock(&m_Computer->lock);
+                   m_Computer->serverCert = serverCertificate;
+                   m_Computer->pairState = NvComputer::PS_PAIRED;
+               }
                // Persist the newly pinned server certificate for this host
                m_ComputerManager->saveHost(m_Computer);
 
@@ -622,7 +640,7 @@ private:
                break;
            }
         } catch (const GfeHttpResponseException& e) {
-            emit pairingCompleted(m_Computer, tr("GeForce Experience returned error: %1").arg(e.toQString()));
+            emit pairingCompleted(m_Computer, tr("Host returned error: %1").arg(e.toQString()));
         } catch (const QtNetworkReplyException& e) {
             emit pairingCompleted(m_Computer, e.toQString());
         }
@@ -635,6 +653,12 @@ private:
 
 void ComputerManager::pairHost(NvComputer* computer, QString pin)
 {
+    {
+        QWriteLocker lock(&computer->lock);
+        if (computer->pairingInProgress)
+            return;
+        computer->pairingInProgress = true;
+    }
     // Punt to a worker thread to avoid stalling the
     // UI while waiting for pairing to complete
     PendingPairingTask* pairing = new PendingPairingTask(this, computer, pin);

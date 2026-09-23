@@ -246,6 +246,7 @@ HEADERS += \
     streaming/streamutils.h \
     backend/autoupdatechecker.h \
     backend/sunshinemanager.h \
+    backend/deskaccess.h \
     path.h \
     settings/mappingmanager.h \
     gui/sdlgamepadkeynavigation.h \

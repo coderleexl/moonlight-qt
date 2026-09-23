@@ -3,10 +3,12 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 jobs="${JOBS:-4}"
+python3 scripts/prepare-desk-translations.py
 version="$(cat app/version.txt)"
 arch="$(dpkg --print-architecture)"
 [[ "$arch" == amd64 ]] || { echo 'This DEB build currently targets amd64'; exit 1; }
 export BRANCH=bundled
+bash scripts/apply-sunshine-patches.sh
 export BUILD_VERSION="$(git -C third_party/sunshine describe --tags --exact-match)"
 export COMMIT="$(git -C third_party/sunshine rev-parse HEAD)"
 cmake -S third_party/sunshine -B build/desk-sunshine-linux -G Ninja \
@@ -36,7 +38,7 @@ printf 'uinput\nuhid\n' > "$stage/usr/lib/modules-load.d/desk.conf"
 install -m755 "$repo_root/packaging/linux/postinst" "$stage/DEBIAN/postinst"
 cp "$repo_root/LICENSE" "$stage/usr/share/doc/desk/Moonlight-LICENSE"
 cp "$repo_root/third_party/sunshine/LICENSE" "$stage/usr/share/doc/desk/Sunshine-LICENSE"
-printf 'https://github.com/LizardByte/Sunshine\n%s\n' "$COMMIT" > "$stage/usr/share/doc/desk/SOURCE.txt"
+printf 'Upstream: https://github.com/LizardByte/Sunshine\n%s\nDesk modifications: https://github.com/coderleexl/moonlight-qt/tree/%s/patches/sunshine\n' "$COMMIT" "$(git rev-parse HEAD)" > "$stage/usr/share/doc/desk/SOURCE.txt"
 cat > "$stage/usr/share/doc/desk/README" <<'EOF'
 Desk for Ubuntu 24.04 amd64
 Includes Sunshine; no separate host installation is needed.

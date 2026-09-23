@@ -1,11 +1,18 @@
 #include "sunshinemanager.h"
+#include "deskaccess.h"
 
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHostInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkInterface>
 #include <QNetworkProxy>
+#include <QProcessEnvironment>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTcpServer>
@@ -16,6 +23,8 @@
 
 SunshineManager::SunshineManager(QObject* parent) : QObject(parent)
 {
+    if (!prepareAccess())
+        setState(Failed, tr("Unable to read or save this computer's access credentials."));
     m_Process.setProcessChannelMode(QProcess::MergedChannels);
 #ifdef Q_OS_WIN
     m_Process.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* args) {
@@ -142,6 +151,89 @@ QString SunshineManager::configDirectory() const
     return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/sunshine";
 }
 
+QStringList SunshineManager::lanAddresses() const
+{
+    QStringList result;
+    for (const auto& iface : QNetworkInterface::allInterfaces()) {
+        if (!(iface.flags() & QNetworkInterface::IsUp) || (iface.flags() & QNetworkInterface::IsLoopBack))
+            continue;
+        for (const auto& entry : iface.addressEntries()) {
+            if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol)
+                result.append(entry.ip().toString() + ':' + QString::number(basePort()));
+        }
+    }
+    result.removeDuplicates();
+    return result;
+}
+
+bool SunshineManager::saveAccess(const QString& deviceId, const QString& password)
+{
+    QDir directory(configDirectory());
+    if (!directory.mkpath("."))
+        return false;
+    QFile::setPermissions(directory.absolutePath(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    QSaveFile file(directory.filePath("desk-access.json"));
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+    file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    const auto data = QJsonDocument(QJsonObject{{"version", 1}, {"deviceId", deviceId}, {"password", password}}).toJson();
+    if (file.write(data) != data.size() || !file.commit())
+        return false;
+    m_DeviceId = deviceId;
+    m_AccessPassword = password;
+    emit accessChanged();
+    return true;
+}
+
+bool SunshineManager::prepareAccess()
+{
+    QFile file(configDirectory() + "/desk-access.json");
+    if (!file.exists())
+        return saveAccess(DeskAccess::newId(), DeskAccess::newPassword());
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    const auto object = QJsonDocument::fromJson(file.readAll()).object();
+    const auto deviceId = object.value("deviceId").toString();
+    const auto password = object.value("password").toString();
+    if (object.value("version").toInt() != 1 || !DeskAccess::validId(deviceId) || !DeskAccess::validPassword(password))
+        return false;
+    m_DeviceId = deviceId;
+    m_AccessPassword = password;
+    return true;
+}
+
+bool SunshineManager::resetAccess()
+{
+    if (m_Process.state() != QProcess::NotRunning)
+        return false;
+    // Revoke certificates before changing the password, and preserve host UUID,
+    // Web UI credentials, and all unrelated Sunshine state.
+    const QString path = configDirectory() + "/sunshine_state.json";
+    QFile state(path);
+    if (state.exists()) {
+        if (!state.open(QIODevice::ReadOnly))
+            return false;
+        QJsonParseError error;
+        const auto document = QJsonDocument::fromJson(state.readAll(), &error);
+        state.close();
+        if (error.error != QJsonParseError::NoError || !document.isObject())
+            return false;
+        auto object = document.object();
+        auto root = object.value("root").toObject();
+        root.insert("named_devices", QJsonArray());
+        root.remove("devices");
+        object.insert("root", root);
+        QSaveFile output(path);
+        if (!output.open(QIODevice::WriteOnly))
+            return false;
+        output.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        const auto data = QJsonDocument(object).toJson();
+        if (output.write(data) != data.size() || !output.commit())
+            return false;
+    }
+    return saveAccess(DeskAccess::validId(m_DeviceId) ? m_DeviceId : DeskAccess::newId(), DeskAccess::newPassword());
+}
+
 void SunshineManager::setLocalOnly(bool localOnly)
 {
     if (m_Process.state() != QProcess::NotRunning || m_LocalOnly == localOnly)
@@ -197,15 +289,23 @@ void SunshineManager::start()
         setState(Failed, tr("Unable to create the Sunshine configuration directory."));
         return;
     }
+    if (!prepareAccess()) {
+        setState(Failed, tr("Unable to read or save this computer's access credentials."));
+        return;
+    }
     const QDir config(configDirectory());
     m_Log.clear();
     emit logChanged();
     // Windows resolves its assets relative to the executable directory.
     m_Process.setWorkingDirectory(QFileInfo(executablePath()).absolutePath());
     m_Process.setProgram(executablePath());
+    auto environment = QProcessEnvironment::systemEnvironment();
+    environment.insert("DESK_DEVICE_ID", m_DeviceId);
+    environment.insert("DESK_ACCESS_PASSWORD", m_AccessPassword);
+    m_Process.setProcessEnvironment(environment);
     m_Process.setArguments({config.filePath("sunshine.conf"),
                            QString("port=%1").arg(basePort()), "address_family=ipv4", "origin_web_ui_allowed=pc", "upnp=disabled",
-                           "sunshine_name=" + QCoreApplication::applicationName() + " Host",
+                           "sunshine_name=" + QHostInfo::localHostName(),
                            QString("bind_address=%1").arg(m_LocalOnly ? "127.0.0.1" : "0.0.0.0"),
                            "file_apps=" + config.filePath("apps.json"),
                            "file_state=" + config.filePath("sunshine_state.json"),

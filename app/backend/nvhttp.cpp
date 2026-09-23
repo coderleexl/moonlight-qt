@@ -493,7 +493,7 @@ NvHTTP::openConnection(QUrl baseUrl,
     url.setPath("/" + command);
 
     // Use a placeholder UID for GFE allow them to quit games for each other.
-    url.setQuery("uniqueid=" + (m_UseTrueUid ? IdentityManager::get()->getUniqueId() : "0123456789ABCDEF") +
+    url.setQuery("uniqueid=" + (!m_PairingSessionId.isEmpty() ? m_PairingSessionId : m_UseTrueUid ? IdentityManager::get()->getUniqueId() : "0123456789ABCDEF") +
                  "&uuid=" + QUuid::createUuid().toRfc4122().toHex() +
                  ((arguments != nullptr) ? ("&" + arguments) : ""));
 

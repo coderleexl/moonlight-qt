@@ -1,5 +1,8 @@
 #include "nvpairingmanager.h"
 #include "utils.h"
+#include "nvcomputer.h"
+#include <QHostInfo>
+#include <QUuid>
 
 #include <stdexcept>
 
@@ -12,8 +15,10 @@
 #define REQUEST_TIMEOUT_MS 5000
 
 NvPairingManager::NvPairingManager(NvComputer* computer) :
-    m_Http(computer)
+    m_Http(computer), m_DeskAccess(!computer->deskDeviceId.isEmpty())
 {
+    if (m_DeskAccess)
+        m_Http.setPairingSessionId(QUuid::createUuid().toString(QUuid::WithoutBraces));
     QByteArray cert = IdentityManager::get()->getCertificate();
     BIO *bio = BIO_new_mem_buf(cert.data(), -1);
     THROW_BAD_ALLOC_IF_NULL(bio);
@@ -232,9 +237,9 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
 
     QString getCert = m_Http.openConnectionToString(m_Http.m_BaseUrlHttp,
                                                     "pair",
-                                                    "devicename=roth&updateState=1&phrase=getservercert&salt=" +
+                                                    "devicename=" + QUrl::toPercentEncoding(QHostInfo::localHostName()) + "&updateState=1&phrase=getservercert&salt=" +
                                                     salt.toHex() + "&clientcert=" + IdentityManager::get()->getCertificate().toHex(),
-                                                    0);
+                                                    m_DeskAccess ? REQUEST_TIMEOUT_MS : 0);
     NvHTTP::verifyResponseStatus(getCert);
     if (NvHTTP::getXmlString(getCert, "paired") != "1")
     {
@@ -245,7 +250,7 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
     QByteArray serverCertStr = NvHTTP::getXmlStringFromHex(getCert, "plaincert");
     if (serverCertStr.isEmpty()) {
         qCritical() << "Server likely already pairing";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::ALREADY_IN_PROGRESS;
     }
 
@@ -254,7 +259,7 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
         Q_ASSERT(!unverifiedServerCert.isNull());
 
         qCritical() << "Failed to parse plaincert";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
@@ -273,14 +278,14 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
     if (NvHTTP::getXmlString(challengeXml, "paired") != "1")
     {
         qCritical() << "Failed pairing at stage #2";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
     QByteArray challengeResponseData = decrypt(m_Http.getXmlStringFromHex(challengeXml, "challengeresponse"), aesKey);
-    if (challengeResponseData.size() < hashLength) {
+    if (challengeResponseData.size() < hashLength + 16) {
         qCritical() << "Invalid challengeresponse at stage #2";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
@@ -304,14 +309,14 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
     if (NvHTTP::getXmlString(respXml, "paired") != "1")
     {
         qCritical() << "Failed pairing at stage #3";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
     QByteArray pairingSecret = NvHTTP::getXmlStringFromHex(respXml, "pairingsecret");
     if (pairingSecret.size() <= 16) {
         qCritical() << "Invalid pairingsecret at stage #3";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
@@ -323,7 +328,7 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
                          serverCertStr))
     {
         qCritical() << "MITM detected";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
@@ -334,7 +339,7 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
     if (QCryptographicHash::hash(expectedResponseData, hashAlgo) != serverResponse)
     {
         qCritical() << "Incorrect PIN";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::PIN_WRONG;
     }
 
@@ -351,7 +356,7 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
     if (NvHTTP::getXmlString(secretRespXml, "paired") != "1")
     {
         qCritical() << "Failed pairing at stage #4";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
@@ -363,10 +368,22 @@ NvPairingManager::pair(QString appVersion, QString pin, QSslCertificate& serverC
     if (NvHTTP::getXmlString(pairChallengeXml, "paired") != "1")
     {
         qCritical() << "Failed pairing at stage #5";
-        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp, "unpair", nullptr, REQUEST_TIMEOUT_MS);
+        cancelPendingPairing();
         return PairState::FAILED;
     }
 
     serverCert = std::move(unverifiedServerCert);
     return PairState::PAIRED;
+}
+
+void NvPairingManager::cancelPendingPairing()
+{
+    // Cleanup must not hide the original wrong-password or protocol error.
+    try {
+        m_Http.openConnectionToString(m_Http.m_BaseUrlHttp,
+                                     m_DeskAccess ? "pair" : "unpair",
+                                     m_DeskAccess ? "phrase=deskcancel" : QString(),
+                                     REQUEST_TIMEOUT_MS);
+    } catch (...) {
+    }
 }

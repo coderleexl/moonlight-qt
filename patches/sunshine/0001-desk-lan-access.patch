@@ -1,0 +1,150 @@
+--- a/src/nvhttp.cpp
++++ b/src/nvhttp.cpp
+@@ -8,6 +8,8 @@
+ // standard includes
+ #include <algorithm>
+ #include <chrono>
++#include <cstdlib>
++#include <deque>
+ #include <filesystem>
+ #include <format>
+ #include <mutex>
+@@ -47,6 +49,49 @@
+ 
+   namespace fs = std::filesystem;
+   namespace pt = boost::property_tree;
++
++  // Desk supplies a 128-bit random access secret through the child environment.
++  // Never advertise or log the secret. Stock Sunshine has no Desk environment.
++  const std::string &desk_password() {
++    static const std::string password = [] {
++      const char *value = std::getenv("DESK_ACCESS_PASSWORD");
++      std::string text = value ? value : "";
++      if (text.size() != 22 || text.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-") != std::string::npos) {
++        return std::string {};
++      }
++      return text;
++    }();
++    return password;
++  }
++
++  const std::string &desk_id() {
++    static const std::string id = [] {
++      const char *value = std::getenv("DESK_DEVICE_ID");
++      std::string text = value ? value : "";
++      return text.size() == 9 && text.find_first_not_of("0123456789") == std::string::npos ? text : std::string {};
++    }();
++    return id;
++  }
++
++  bool desk_access_enabled() {
++    return !desk_password().empty() && !desk_id().empty();
++  }
++
++  // Bounded global limiter, including failed and abandoned handshakes.
++  bool desk_allow_attempt() {
++    static std::mutex mutex;
++    static std::deque<std::chrono::steady_clock::time_point> attempts;
++    std::scoped_lock lock {mutex};
++    const auto now = std::chrono::steady_clock::now();
++    while (!attempts.empty() && now - attempts.front() >= 1min) {
++      attempts.pop_front();
++    }
++    if (attempts.size() >= 30) {
++      return false;
++    }
++    attempts.push_back(now);
++    return true;
++  }
+ 
+   crypto::cert_chain_t cert_chain;  ///< Enabled paired-client certificates accepted by Sunshine's GameStream HTTPS server.
+ 
+@@ -971,6 +1016,17 @@
+     pt::ptree &tree,
+     const std::string &unique_id
+   ) {
++    const bool desk = desk_access_enabled();
++    if (desk && net::from_address(net::addr_to_normalized_string(request->remote_endpoint().address())) == net::WAN) {
++      tree.put("root.<xmlattr>.status_code", 403);
++      tree.put("root.<xmlattr>.status_message", "Desk access requires a local network connection");
++      return false;
++    }
++    if (desk && !desk_allow_attempt()) {
++      tree.put("root.<xmlattr>.status_code", 429);
++      tree.put("root.<xmlattr>.status_message", "Too many access attempts; retry in one minute");
++      return false;
++    }
+     pair_session_t sess;
+     sess.client.uniqueID = unique_id;
+     sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
+@@ -978,9 +1034,13 @@
+     sess.async_insert_pin.device_name = get_arg(args, "devicename");
+     sess.async_insert_pin.address = net::addr_to_normalized_string(request->remote_endpoint().address());
+ 
++    if (desk) {
++      const auto &name = sess.async_insert_pin.device_name;
++      sess.client.name = is_valid_pairing_name(name) ? name : "Desk";
++    }
+     BOOST_LOG(debug) << sess.client.cert;
+     const bool pin_stdin = config::sunshine.flags[config::flag::PIN_STDIN];
+-    if (!pin_stdin) {
++    if (!pin_stdin && !desk) {
+       sess.async_insert_pin.response = response;
+     }
+ 
+@@ -1002,16 +1062,18 @@
+         break;
+     }
+ 
+-    if (!pin_stdin) {
++    if (!pin_stdin && !desk) {
+ #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+       system_tray::update_tray_require_pin();
+ #endif
+       return true;
+     }
+ 
+-    std::string pin;
+-    std::cout << "Please insert pin: "sv;
+-    std::getline(std::cin, pin);
++    std::string pin = desk ? desk_password() : "";
++    if (!desk) {
++      std::cout << "Please insert pin: "sv;
++      std::getline(std::cin, pin);
++    }
+ 
+     std::scoped_lock lock {map_id_sess_mutex()};
+     expire_pair_sessions_unlocked(std::chrono::steady_clock::now());
+@@ -1081,6 +1143,21 @@
+       tree.put("root.<xmlattr>.status_message", "Invalid uniqueid");
+ 
+       return;
++    }
++
++    if (desk_access_enabled()) {
++      // Each Desk attempt has an unpredictable session ID. Cancellation only
++      // removes that pending handshake, never a previously authorized client.
++      if (sess_it->second.async_insert_pin.address != net::addr_to_normalized_string(request->remote_endpoint().address())) {
++        tree.put("root.<xmlattr>.status_code", 403);
++        return;
++      }
++      if (phrase_it != std::end(args) && phrase_it->second == "deskcancel"sv) {
++        map_id_sess.erase(sess_it);
++        tree.put("root.<xmlattr>.status_code", 200);
++        tree.put("root.paired", 0);
++        return;
++      }
+     }
+ 
+     bool pairing_complete = false;
+@@ -1223,6 +1300,10 @@
+ 
+     tree.put("root.<xmlattr>.status_code", 200);
+     tree.put("root.hostname", config::nvhttp.sunshine_name);
++    if (desk_access_enabled()) {
++      tree.put("root.DeskDeviceId", desk_id());
++      tree.put("root.DeskAccessVersion", 1);
++    }
+ 
+     tree.put("root.appversion", VERSION);
+     tree.put("root.GfeVersion", GFE_VERSION);

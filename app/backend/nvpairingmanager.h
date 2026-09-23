@@ -49,7 +49,9 @@ private:
     QByteArray
     signMessage(const QByteArray& message);
 
+    void cancelPendingPairing();
     NvHTTP m_Http;
+    bool m_DeskAccess;
     X509* m_Cert;
     EVP_PKEY* m_PrivateKey;
 };

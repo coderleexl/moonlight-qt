@@ -17,6 +17,8 @@ FocusScope {
     readonly property string decoderStatus: !SystemProperties.decoderInfoReady ? qsTr("Not detected") : SystemProperties.hasHardwareAcceleration ? qsTr("Hardware decoding") : qsTr("Software decoding")
     readonly property bool narrow: width < 710
     property bool showDetail: false
+    property string pendingDesktopUuid: ""
+    property bool pairingBusy: false
     readonly property var selectedDevice: pcList.currentItem
 
     function resetSelection() {
@@ -61,6 +63,15 @@ FocusScope {
             errorDialog.helpText = "";
             errorDialog.open();
         } else if (!device.pcPaired) {
+            if (pairingBusy)
+                return;
+            if (device.pcDeskId.length > 0) {
+                accessDialog.targetUuid = device.pcUuid;
+                accessDialog.deviceName = device.pcName;
+                accessDialog.open();
+                return;
+            }
+            pairingBusy = true;
             pairDialog.pin = computerModel.generatePinString();
             computerModel.pairComputer(pcList.currentIndex, pairDialog.pin);
             pairDialog.open();
@@ -94,15 +105,36 @@ FocusScope {
             event.accepted = false;
     }
 
-    function pairingComplete(error) {
-        // Close the PIN dialog
-        pairDialog.close();
+    function connectById(deviceId) {
+        var index = computerModel.findDevice(deviceId);
+        if (index < 0) {
+            errorDialog.text = index === -2 ? qsTr("More than one device has this ID. Select the device from the list or use its IP address.") : qsTr("Device not found. Start sharing on the other computer and check that both devices are on the same local network. If discovery is blocked, add its IP address and port instead.");
+            errorDialog.helpText = "";
+            errorDialog.open();
+            return;
+        }
+        pcList.currentIndex = index;
+        pcList.positionViewAtIndex(index, ListView.Contain);
+        showDetail = true;
+        Qt.callLater(activateDevice);
+    }
 
-        // Display a failed dialog if we got an error
+    function pairingComplete(error, uuid) {
+        pairingBusy = false;
+        pairDialog.close();
+        accessProgress.close();
         if (error !== undefined) {
+            pendingDesktopUuid = "";
             errorDialog.text = error;
             errorDialog.helpText = "";
             errorDialog.open();
+        } else if (pendingDesktopUuid === uuid) {
+            pendingDesktopUuid = "";
+            var index = computerModel.findDevice(uuid);
+            if (index >= 0) {
+                pcList.currentIndex = index;
+                Qt.callLater(function () { openApps(true, true, true); });
+            }
         }
     }
 
@@ -173,6 +205,8 @@ FocusScope {
                         grid: pcList
                         listNavigation: true
                         property string pcName: model.name
+                        property string pcUuid: model.computerUuid
+                        property string pcDeskId: model.deskDeviceId
                         property bool pcOnline: model.online
                         property bool pcPaired: model.paired
                         property bool pcSupported: model.serverSupported
@@ -180,7 +214,7 @@ FocusScope {
                         property bool pcWakeable: model.wakeable
                         property bool pcBusy: model.busy
                         property string pcDetails: model.details
-                        readonly property string stateText: pcUnknown ? qsTr("Checking status…") : !pcOnline ? qsTr("Offline") : !pcSupported ? qsTr("Host update required") : !pcPaired ? qsTr("Pairing required") : pcBusy ? qsTr("Online · App running") : qsTr("Online · Paired")
+                        readonly property string stateText: pcUnknown ? qsTr("Checking status…") : !pcOnline ? qsTr("Offline") : !pcSupported ? qsTr("Host update required") : !pcPaired ? (pcDeskId.length ? qsTr("Access password required") : qsTr("Pairing required")) : pcBusy ? qsTr("Online · App running") : qsTr("Online · Paired")
                         readonly property color stateColor: pcUnknown || !pcOnline ? window.secondaryColor : !pcPaired || !pcSupported ? window.warningColor : window.onlineColor
                         Accessible.role: Accessible.Button
                         Accessible.name: pcName + ", " + stateText
@@ -595,6 +629,61 @@ FocusScope {
         // Using Setup-Guide here instead of Troubleshooting because it's likely that users
         // will arrive here by forgetting to enable GameStream or not forwarding ports.
         helpUrl: "https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide"
+    }
+
+    NavigableDialog {
+        id: accessDialog
+        objectName: "deskAccessDialog"
+        title: qsTr("Connect to %1").arg(deviceName)
+        property string targetUuid: ""
+        property string deviceName: ""
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onOpened: {
+            accessInput.forceActiveFocus();
+            standardButton(Dialog.Ok).enabled = false;
+        }
+        onClosed: accessInput.clear()
+        onAccepted: {
+            var index = computerModel.findDevice(targetUuid);
+            if (index < 0 || pairingBusy)
+                return;
+            pendingDesktopUuid = targetUuid;
+            pairingBusy = true;
+            computerModel.pairComputer(index, accessInput.text.trim());
+            accessInput.clear();
+            accessProgress.open();
+        }
+        ColumnLayout {
+            width: parent.width
+            spacing: 16
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Enter the access password shown on the other computer's This computer page. Authorization is remembered for future connections.")
+                wrapMode: Text.Wrap
+            }
+            TextField {
+                id: accessInput
+                objectName: "deskAccessPasswordInput"
+                Layout.fillWidth: true
+                echoMode: TextInput.Password
+                selectByMouse: true
+                placeholderText: qsTr("Access password")
+                maximumLength: 64
+                onTextChanged: {
+                    var button = accessDialog.standardButton(Dialog.Ok);
+                    if (button) button.enabled = text.trim().length > 0;
+                }
+                onAccepted: if (text.trim().length > 0) accessDialog.accept()
+            }
+        }
+    }
+
+    NavigableMessageDialog {
+        id: accessProgress
+        text: qsTr("Authorizing this device…")
+        showSpinner: true
+        standardButtons: Dialog.NoButton
+        closePolicy: Popup.NoAutoClose
     }
 
     NavigableMessageDialog {

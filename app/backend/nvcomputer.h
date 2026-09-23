@@ -88,6 +88,7 @@ public:
     };
 
     // Ephemeral traits
+    bool pairingInProgress = false;
     ComputerState state;
     PairState pairState;
     NvAddress activeAddress;
@@ -110,6 +111,7 @@ public:
     QString name;
     bool hasCustomName;
     QString uuid;
+    QString deskDeviceId;
     QSslCertificate serverCert;
     QVector<NvApp> appList;
     bool isNvidiaServerSoftware;

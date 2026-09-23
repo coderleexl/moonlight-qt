@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QProcess>
+#include <QStringList>
 #include <QTcpSocket>
 #include <QTimer>
 
@@ -19,6 +20,9 @@ class SunshineManager : public QObject
     Q_PROPERTY(QString error READ error NOTIFY stateChanged)
     Q_PROPERTY(QString logText READ logText NOTIFY logChanged)
     Q_PROPERTY(QString configDirectory READ configDirectory CONSTANT)
+    Q_PROPERTY(QString deviceId READ deviceId NOTIFY accessChanged)
+    Q_PROPERTY(QString accessPassword READ accessPassword NOTIFY accessChanged)
+    Q_PROPERTY(QStringList lanAddresses READ lanAddresses NOTIFY stateChanged)
 
 public:
     enum State { Stopped, Starting, Running, Stopping, Failed };
@@ -36,6 +40,9 @@ public:
     QString error() const { return m_Error; }
     QString logText() const { return m_Log; }
     QString configDirectory() const;
+    QString deviceId() const { return m_DeviceId; }
+    QString accessPassword() const { return m_AccessPassword; }
+    QStringList lanAddresses() const;
 
     Q_INVOKABLE void start();
     Q_INVOKABLE void stop();
@@ -43,11 +50,13 @@ public:
     Q_INVOKABLE void openLogs();
     Q_INVOKABLE void openScreenRecordingSettings();
     Q_INVOKABLE void openAccessibilitySettings();
+    Q_INVOKABLE bool resetAccess();
 
 signals:
     void stateChanged();
     void localOnlyChanged();
     void logChanged();
+    void accessChanged();
 
 private:
     QString executablePath() const;
@@ -55,6 +64,8 @@ private:
     bool prepareConfiguration();
     void setState(State state, const QString& error = QString());
     void readOutput();
+    bool prepareAccess();
+    bool saveAccess(const QString& deviceId, const QString& password);
 
     QProcess m_Process;
     QTcpSocket m_Probe;
@@ -62,7 +73,9 @@ private:
     QTimer m_StartTimeout;
     QTimer m_StopTimeout;
     State m_State = Stopped;
-    bool m_LocalOnly = true;
+    bool m_LocalOnly = false;
     QString m_Error;
     QString m_Log;
+    QString m_DeviceId;
+    QString m_AccessPassword;
 };

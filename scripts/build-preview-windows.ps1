@@ -10,6 +10,7 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     & $Command @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
 }
+Invoke-Checked 'python' @((Join-Path $RepoRoot 'scripts/prepare-desk-translations.py'))
 foreach ($tool in @('qmake', 'nmake', 'windeployqt')) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "Missing tool: $tool" }
 }

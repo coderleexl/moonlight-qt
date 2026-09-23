@@ -9,6 +9,21 @@ FocusScope {
     objectName: qsTr("This computer")
     readonly property bool busy: SunshineManager.state === SunshineManager.Starting || SunshineManager.state === SunshineManager.Stopping
     readonly property bool running: SunshineManager.state === SunshineManager.Running
+    NavigableMessageDialog {
+        id: resetAccessDialog
+        text: qsTr("Change the access password and revoke all saved authorizations? Previously connected devices will need the new password.")
+        standardButtons: Dialog.Yes | Dialog.No
+        onAccepted: {
+            if (!SunshineManager.resetAccess()) {
+                accessError.text = qsTr("Unable to reset access. Stop sharing and check that the host configuration is writable.");
+                accessError.open();
+            }
+        }
+    }
+    NavigableMessageDialog {
+        id: accessError
+        standardButtons: Dialog.Ok
+    }
     ScrollView {
         id: scroll
         objectName: "hostPageScroll"
@@ -22,7 +37,7 @@ FocusScope {
             spacing: 20
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Allow other Moonlight devices to connect to this computer using the built-in Sunshine host.")
+                text: qsTr("Share your desktop with another Desk on the same local network. Start sharing, then give the other person your device ID and access password.")
                 wrapMode: Text.Wrap
                 color: window.secondaryColor
             }
@@ -73,7 +88,7 @@ FocusScope {
                     onClicked: hostPage.running || SunshineManager.state === SunshineManager.Starting ? SunshineManager.stop() : SunshineManager.start()
                 }
                 ActionButton {
-                    text: qsTr("Configuration & pairing")
+                    text: qsTr("Advanced host settings")
                     enabled: hostPage.running
                     onClicked: SunshineManager.openConfiguration()
                 }
@@ -87,11 +102,75 @@ FocusScope {
                     }
                 }
             }
-            Label {
-                text: qsTr("For the first connection, create a host login in Configuration & pairing, then add this computer and enter the pairing PIN in the host configuration.")
+            ColumnLayout {
                 Layout.fillWidth: true
-                wrapMode: Text.Wrap
-                color: window.secondaryColor
+                spacing: 12
+                Label {
+                    text: qsTr("Device ID")
+                    color: window.secondaryColor
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    TextField {
+                        id: deviceIdField
+                        objectName: "hostDeviceId"
+                        Layout.fillWidth: true
+                        readOnly: true
+                        selectByMouse: true
+                        text: SunshineManager.deviceId
+                        font.pixelSize: 24
+                        font.letterSpacing: 3
+                    }
+                    ActionButton {
+                        text: qsTr("Copy ID")
+                        onClicked: { deviceIdField.selectAll(); deviceIdField.copy(); deviceIdField.deselect(); }
+                    }
+                }
+                Label {
+                    text: qsTr("Access password")
+                    color: window.secondaryColor
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    TextField {
+                        id: passwordField
+                        objectName: "hostAccessPassword"
+                        Layout.fillWidth: true
+                        readOnly: true
+                        selectByMouse: true
+                        echoMode: showPassword.checked ? TextInput.Normal : TextInput.Password
+                        text: SunshineManager.accessPassword
+                    }
+                    ActionButton {
+                        text: qsTr("Copy password")
+                        onClicked: {
+                            // Password-mode TextInput intentionally blocks copy.
+                            passwordField.echoMode = TextInput.Normal;
+                            passwordField.selectAll(); passwordField.copy(); passwordField.deselect();
+                            passwordField.echoMode = Qt.binding(function () { return showPassword.checked ? TextInput.Normal : TextInput.Password; });
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CheckBox {
+                        id: showPassword
+                        text: qsTr("Show password")
+                        Layout.fillWidth: true
+                    }
+                    ActionButton {
+                        text: qsTr("Reset access")
+                        enabled: !hostPage.running && !hostPage.busy
+                        onClicked: resetAccessDialog.open()
+                    }
+                }
+                Label {
+                    text: qsTr("Only share the password with people you trust. Reset access while sharing is stopped to change the password and revoke saved authorizations.")
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    color: window.secondaryColor
+                    font.pixelSize: 12
+                }
             }
             Rectangle {
                 Layout.fillWidth: true
@@ -138,7 +217,7 @@ FocusScope {
                 color: window.secondaryColor
             }
             Label {
-                text: qsTr("Host address: %1").arg(SunshineManager.localAddress)
+                text: qsTr("Host address: %1").arg(SunshineManager.localOnly ? SunshineManager.localAddress : SunshineManager.lanAddresses.join(" / "))
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 color: window.secondaryColor

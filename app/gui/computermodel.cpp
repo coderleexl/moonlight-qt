@@ -28,6 +28,10 @@ QVariant ComputerModel::data(const QModelIndex& index, int role) const
     QReadLocker lock(&computer->lock);
 
     switch (role) {
+    case UuidRole:
+        return computer->uuid;
+    case DeskIdRole:
+        return computer->deskDeviceId;
     case NameRole:
         return computer->name;
     case OnlineRole:
@@ -102,6 +106,8 @@ QHash<int, QByteArray> ComputerModel::roleNames() const
 {
     QHash<int, QByteArray> names;
 
+    names[UuidRole] = "computerUuid";
+    names[DeskIdRole] = "deskDeviceId";
     names[NameRole] = "name";
     names[OnlineRole] = "online";
     names[PairedRole] = "paired";
@@ -138,6 +144,11 @@ void ComputerModel::deleteComputer(int computerIndex)
 {
     Q_ASSERT(computerIndex < m_Computers.count());
 
+    {
+        QReadLocker lock(&m_Computers[computerIndex]->lock);
+        if (m_Computers[computerIndex]->pairingInProgress)
+            return;
+    }
     beginRemoveRows(QModelIndex(), computerIndex, computerIndex);
 
     // m_Computer[computerIndex] will be deleted by this call
@@ -215,14 +226,42 @@ void ComputerModel::testConnectionForComputer(int)
 
 void ComputerModel::pairComputer(int computerIndex, QString pin)
 {
-    Q_ASSERT(computerIndex < m_Computers.count());
-
+    if (computerIndex < 0 || computerIndex >= m_Computers.count() || !m_PairingUuid.isEmpty())
+        return;
+    m_PairingUuid = computerUuid(computerIndex);
     m_ComputerManager->pairHost(m_Computers[computerIndex], pin);
 }
 
-void ComputerModel::handlePairingCompleted(NvComputer*, QString error)
+void ComputerModel::handlePairingCompleted(NvComputer* computer, QString error)
 {
-    emit pairingCompleted(error.isEmpty() ? QVariant() : error);
+    if (computer->uuid != m_PairingUuid)
+        return;
+    const auto uuid = m_PairingUuid;
+    m_PairingUuid.clear();
+    handleComputerStateChanged(computer);
+    emit pairingCompleted(error.isEmpty() ? QVariant() : error, uuid);
+}
+
+QString ComputerModel::computerUuid(int computerIndex) const
+{
+    if (computerIndex < 0 || computerIndex >= m_Computers.count())
+        return {};
+    QReadLocker lock(&m_Computers[computerIndex]->lock);
+    return m_Computers[computerIndex]->uuid;
+}
+
+int ComputerModel::findDevice(const QString& identifier) const
+{
+    int result = -1;
+    for (int i = 0; i < m_Computers.count(); ++i) {
+        QReadLocker lock(&m_Computers[i]->lock);
+        if (m_Computers[i]->uuid == identifier || m_Computers[i]->deskDeviceId == identifier) {
+            if (result >= 0)
+                return -2; // Never silently choose between colliding short IDs.
+            result = i;
+        }
+    }
+    return result;
 }
 
 void ComputerModel::handleComputerStateChanged(NvComputer* computer)

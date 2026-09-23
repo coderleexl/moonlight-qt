@@ -16,6 +16,8 @@ class ComputerModel : public QAbstractListModel
         WakeableRole,
         StatusUnknownRole,
         ServerSupportedRole,
+        UuidRole,
+        DeskIdRole,
         DetailsRole
     };
 
@@ -35,6 +37,9 @@ public:
 
     Q_INVOKABLE QString generatePinString();
 
+    Q_INVOKABLE int findDevice(const QString& identifier) const;
+    Q_INVOKABLE QString computerUuid(int computerIndex) const;
+
     Q_INVOKABLE void pairComputer(int computerIndex, QString pin);
 
     Q_INVOKABLE void testConnectionForComputer(int computerIndex);
@@ -46,7 +51,7 @@ public:
     Q_INVOKABLE Session* createSessionForCurrentGame(int computerIndex);
 
 signals:
-    void pairingCompleted(QVariant error);
+    void pairingCompleted(QVariant error, QString uuid);
     void connectionTestCompleted(int result, QString blockedPorts);
 
 private slots:
@@ -56,5 +61,6 @@ private slots:
 
 private:
     QVector<NvComputer*> m_Computers;
-    ComputerManager* m_ComputerManager;
+    ComputerManager* m_ComputerManager = nullptr;
+    QString m_PairingUuid;
 };

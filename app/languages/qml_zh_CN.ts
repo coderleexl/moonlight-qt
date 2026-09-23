@@ -543,7 +543,35 @@
             <source>Closing this dialog does not cancel pairing on the host.</source>
             <translation>关闭此窗口不会取消主机端的配对。</translation>
         </message>
-    </context>
+        <message>
+        <source>More than one device has this ID. Select the device from the list or use its IP address.</source>
+        <translation>有多台设备使用相同识别码，请从列表选择设备，或使用 IP 地址连接。</translation>
+    </message>
+    <message>
+        <source>Device not found. Start sharing on the other computer and check that both devices are on the same local network. If discovery is blocked, add its IP address and port instead.</source>
+        <translation>未找到设备。请在对方电脑开启共享，并确认两台设备处于同一局域网。若网络阻止自动发现，可添加对方的 IP 地址和端口。</translation>
+    </message>
+    <message>
+        <source>Access password required</source>
+        <translation>需要访问密码</translation>
+    </message>
+    <message>
+        <source>Connect to %1</source>
+        <translation>连接 %1</translation>
+    </message>
+    <message>
+        <source>Enter the access password shown on the other computer's This computer page. Authorization is remembered for future connections.</source>
+        <translation>输入对方电脑“本机”页面显示的访问密码。授权成功后，下次可以直接连接。</translation>
+    </message>
+    <message>
+        <source>Access password</source>
+        <translation>访问密码</translation>
+    </message>
+    <message>
+        <source>Authorizing this device…</source>
+        <translation>正在授权此设备…</translation>
+    </message>
+</context>
     <context>
         <name>PendingPairingTask</name>
         <message>
@@ -571,7 +599,15 @@
             <source>GeForce Experience returned error: %1</source>
             <translation>GeForce Experience 返回错误: %1</translation>
         </message>
-    </context>
+        <message>
+        <source>The access password is incorrect. Please try again.</source>
+        <translation>访问密码不正确，请重试。</translation>
+    </message>
+    <message>
+        <source>Host returned error: %1</source>
+        <translation>主机返回错误：%1</translation>
+    </message>
+</context>
     <context>
         <name>PendingQuitTask</name>
         <message>
@@ -1601,7 +1637,15 @@
             <source>Back</source>
             <translation>返回</translation>
         </message>
-    </context>
+        <message>
+        <source>Connect to a device</source>
+        <translation>连接设备</translation>
+    </message>
+    <message>
+        <source>Enter a device ID or IP address (Desk uses port 48989):</source>
+        <translation>输入设备识别码或 IP 地址（Desk 端口为 48989）：</translation>
+    </message>
+</context>
 <context>
     <name>HostView</name>
     <message>
@@ -1739,6 +1783,50 @@
         <source>On Linux, screen sharing may require approval in your desktop portal. Remote input requires uinput access; sign out and back in after installing Desk if input is unavailable.</source>
         <translation>在 Linux 上，共享屏幕可能需要在桌面门户中授权。远程输入需要 uinput 权限；安装 Desk 后若无法输入，请注销并重新登录。</translation>
     </message>
+    <message>
+        <source>Share your desktop with another Desk on the same local network. Start sharing, then give the other person your device ID and access password.</source>
+        <translation>与同一局域网内的另一台 Desk 共享桌面。开启共享后，将设备识别码和访问密码告知对方即可。</translation>
+    </message>
+    <message>
+        <source>Advanced host settings</source>
+        <translation>主机高级设置</translation>
+    </message>
+    <message>
+        <source>Device ID</source>
+        <translation>设备识别码</translation>
+    </message>
+    <message>
+        <source>Copy ID</source>
+        <translation>复制识别码</translation>
+    </message>
+    <message>
+        <source>Access password</source>
+        <translation>访问密码</translation>
+    </message>
+    <message>
+        <source>Copy password</source>
+        <translation>复制密码</translation>
+    </message>
+    <message>
+        <source>Show password</source>
+        <translation>显示密码</translation>
+    </message>
+    <message>
+        <source>Reset access</source>
+        <translation>重置访问权限</translation>
+    </message>
+    <message>
+        <source>Only share the password with people you trust. Reset access while sharing is stopped to change the password and revoke saved authorizations.</source>
+        <translation>请仅向信任的人提供密码。停止共享后，可重置访问权限，更换密码并撤销已保存的授权。</translation>
+    </message>
+    <message>
+        <source>Change the access password and revoke all saved authorizations? Previously connected devices will need the new password.</source>
+        <translation>更换访问密码并撤销所有已保存的授权？此前连接过的设备将需要输入新密码。</translation>
+    </message>
+    <message>
+        <source>Unable to reset access. Stop sharing and check that the host configuration is writable.</source>
+        <translation>无法重置访问权限。请先停止共享，并确认主机配置目录可写入。</translation>
+    </message>
 </context>
 <context>
     <name>SunshineManager</name>
@@ -1771,6 +1859,10 @@
         <location filename="../backend/sunshinemanager.cpp" line="160"/>
         <source>Unable to create the Sunshine configuration directory.</source>
         <translation>无法创建 Sunshine 配置目录。</translation>
+    </message>
+    <message>
+        <source>Unable to read or save this computer's access credentials.</source>
+        <translation>无法读取或保存本机的访问凭据。</translation>
     </message>
 </context>
 </TS>

@@ -1,4 +1,6 @@
 #include "sunshinemanager.h"
+#include "deskaccess.h"
+#include <QJsonObject>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -29,6 +31,13 @@ static int fakeHost(QCoreApplication& app)
     if (!record.open(QIODevice::WriteOnly)) return 21;
     record.write(QJsonDocument(QJsonArray::fromStringList(args)).toJson());
     record.close();
+    QFile access(QFileInfo(config).dir().filePath("desk-access.json"));
+    if (!access.open(QIODevice::ReadOnly)) return 23;
+    const auto credentials = QJsonDocument::fromJson(access.readAll()).object();
+    const auto password = qEnvironmentVariable("DESK_ACCESS_PASSWORD");
+    if (!DeskAccess::validPassword(password) || password != credentials.value("password").toString()) return 24;
+    if (qEnvironmentVariable("DESK_DEVICE_ID") != credentials.value("deviceId").toString()) return 25;
+    if (args.join(' ').contains(password)) return 26;
     if (content.contains("test_exit")) return 42;
     QTcpServer listener;
     listener.setProxy(QNetworkProxy::NoProxy);
@@ -107,11 +116,13 @@ private slots:
         const QByteArray original = "# preserve user configuration\nsunshine_name = My Mac\n";
         writeConfig(original);
         SunshineManager manager;
-        QVERIFY(manager.localOnly());
+        QVERIFY(!manager.localOnly());
+        manager.setLocalOnly(true);
         manager.start();
         QTRY_COMPARE_WITH_TIMEOUT(manager.state(), SunshineManager::Running, 5000);
         manager.setLocalOnly(false);
         QVERIFY(manager.localOnly());
+        QVERIFY(!manager.resetAccess());
         QFile record(m_ConfigDir + "/test-arguments.json");
         QVERIFY(record.open(QIODevice::ReadOnly));
         const auto args = QJsonDocument::fromJson(record.readAll()).array();
@@ -132,6 +143,51 @@ private slots:
         QVERIFY(QJsonDocument::fromJson(record.readAll()).array().contains("bind_address=0.0.0.0"));
         manager.stop();
         QTRY_COMPARE_WITH_TIMEOUT(manager.state(), SunshineManager::Stopped, 7000);
+    }
+    void accessPersistsAndResetRevokes()
+    {
+        SunshineManager first;
+        QVERIFY(DeskAccess::validId(first.deviceId()));
+        QVERIFY(DeskAccess::validPassword(first.accessPassword()));
+        const auto id = first.deviceId();
+        const auto password = first.accessPassword();
+        SunshineManager second;
+        QCOMPARE(second.deviceId(), id);
+        QCOMPARE(second.accessPassword(), password);
+#ifndef Q_OS_WIN
+        const auto permissions = QFile(m_ConfigDir + "/desk-access.json").permissions();
+        QVERIFY(!(permissions & (QFileDevice::ReadGroup | QFileDevice::ReadOther)));
+#endif
+        QFile state(m_ConfigDir + "/sunshine_state.json");
+        QVERIFY(state.open(QIODevice::WriteOnly));
+        state.write(R"({"username":"admin","password":"hash","root":{"uniqueid":"keep-host-uuid","named_devices":[{"cert":"old"}],"devices":[{"certs":["legacy"]}]}})");
+        state.close();
+        QVERIFY(second.resetAccess());
+        QCOMPARE(second.deviceId(), id);
+        QVERIFY(second.accessPassword() != password);
+        QVERIFY(state.open(QIODevice::ReadOnly));
+        const auto object = QJsonDocument::fromJson(state.readAll()).object();
+        QCOMPARE(object.value("username").toString(), QString("admin"));
+        QCOMPARE(object.value("password").toString(), QString("hash"));
+        const auto root = object.value("root").toObject();
+        QCOMPARE(root.value("uniqueid").toString(), QString("keep-host-uuid"));
+        QVERIFY(root.value("named_devices").toArray().isEmpty());
+        QVERIFY(!root.contains("devices"));
+        SunshineManager third;
+        QCOMPARE(third.accessPassword(), second.accessPassword());
+    }
+    void corruptAccessFailsClosed()
+    {
+        SunshineManager first;
+        QFile access(m_ConfigDir + "/desk-access.json");
+        QVERIFY(access.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        access.write("broken");
+        access.close();
+        SunshineManager manager;
+        QCOMPARE(manager.state(), SunshineManager::Failed);
+        manager.start();
+        QCOMPARE(manager.state(), SunshineManager::Failed);
+        QVERIFY(manager.accessPassword().isEmpty());
     }
     void helperExits()
     {

@@ -586,8 +586,8 @@ ApplicationWindow {
     NavigableDialog {
         id: addPcDialog
         objectName: "addComputerDialog"
-        title: qsTr("Add PC manually")
-        property string label: qsTr("Enter the IP address of your host PC:")
+        title: qsTr("Connect to a device")
+        property string label: qsTr("Enter a device ID or IP address (Desk uses port 48989):")
 
         standardButtons: Dialog.Ok | Dialog.Cancel
 
@@ -603,7 +603,18 @@ ApplicationWindow {
 
         onAccepted: {
             if (editText.text.trim()) {
-                ComputerManager.addNewHostManually(editText.text.trim());
+                var value = editText.text.trim();
+                if (/^[0-9]{9}$/.test(value.replace(/\s/g, ""))) {
+                    window.showComputers();
+                    var page = stackView.get(0);
+                    page.connectById(value.replace(/\s/g, ""));
+                } else {
+                    // Bare IPv4 addresses use Desk's port. An explicit port
+                    // still supports standalone Sunshine and legacy hosts.
+                    if (/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/.test(value))
+                        value += ":48989";
+                    ComputerManager.addNewHostManually(value);
+                }
             }
         }
 

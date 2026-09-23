@@ -3,7 +3,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 jobs="${JOBS:-3}"
+python3 scripts/prepare-desk-translations.py
 export BRANCH=bundled
+bash scripts/apply-sunshine-patches.sh
 export BUILD_VERSION="$(git -C third_party/sunshine describe --tags --exact-match)"
 export COMMIT="$(git -C third_party/sunshine rev-parse HEAD)"
 cmake -S third_party/sunshine -B build/desk-sunshine-macos -G Ninja \
@@ -33,7 +35,7 @@ mkdir -p "$app_bundle/Contents/Helpers" "$app_bundle/Contents/Resources/licenses
 ditto "$repo_root/build/desk-sunshine-stage/Sunshine.app" "$app_bundle/Contents/Helpers/Sunshine.app"
 cp "$repo_root/LICENSE" "$app_bundle/Contents/Resources/licenses/Moonlight-LICENSE.txt"
 cp "$repo_root/third_party/sunshine/LICENSE" "$app_bundle/Contents/Resources/licenses/Sunshine-LICENSE.txt"
-printf 'https://github.com/LizardByte/Sunshine\n%s\n' "$COMMIT" > "$app_bundle/Contents/Resources/licenses/SOURCE.txt"
+printf 'Upstream: https://github.com/LizardByte/Sunshine\n%s\nDesk modifications: https://github.com/coderleexl/moonlight-qt/tree/%s/patches/sunshine\n' "$COMMIT" "$(git rev-parse HEAD)" > "$app_bundle/Contents/Resources/licenses/SOURCE.txt"
 xattr -cr "$app_bundle"
 codesign --force --deep --sign - "$app_bundle/Contents/Helpers/Sunshine.app"
 codesign --force --deep --sign - "$app_bundle"

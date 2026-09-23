@@ -1,9 +1,11 @@
 """Publishing must stop before mutating GitHub when build artifacts disagree."""
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import runpy
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -67,6 +69,49 @@ class ReleaseValidationTest(unittest.TestCase):
     def test_corrupt_package_stops_publication(self):
         (self.root / 'Desk-x64.zip').write_bytes(b'corrupt')
         self.reject(RuntimeError)
+
+    def published_release(self, missing_public_assets=False):
+        metadata = dict(id=42, draft=False, assets=[], html_url='https://github.com/test/desk/releases/tag/desk-v6.1.1')
+
+        def assets():
+            # The script creates SHA256SUMS.txt before querying GitHub.
+            return [dict(name=p.name, size=p.stat().st_size, state='uploaded',
+                         digest='sha256:' + hashlib.sha256(p.read_bytes()).hexdigest(),
+                         browser_download_url='https://example.invalid/' + p.name)
+                    for p in self.root.iterdir()
+                    if p.name.startswith(('Desk-', 'desk_')) or p.name == 'SHA256SUMS.txt']
+
+        def read(cmd, **kwargs):
+            if cmd == ['git', 'rev-parse', 'HEAD']:
+                return SHA + '\n'
+            self.assertEqual(cmd[:2], ['gh', 'api'])
+            return json.dumps(assets() if '/assets?' in cmd[2] else metadata)
+
+        def run(cmd, **kwargs):
+            if cmd[:3] == ['git', 'rev-parse', '--verify']:
+                return subprocess.CompletedProcess(cmd, 0, stdout=SHA + '\n')
+            self.assertEqual(cmd[:3], ['gh', 'release', 'view'])
+            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(dict(isDraft=False)))
+
+        def public(url, **kwargs):
+            data = ([] if missing_public_assets else assets()) if '/assets?' in url else metadata
+            return io.BytesIO(json.dumps(data).encode())
+
+        with patch.dict(os.environ, dict(GITHUB_REPOSITORY='test/desk', GITHUB_REF='refs/heads/master',
+                                        GITHUB_RUN_ID='123', GITHUB_STEP_SUMMARY=str(self.root / 'summary.md'))), \
+             patch('subprocess.check_output', side_effect=read), \
+             patch('subprocess.run', side_effect=run), \
+             patch('urllib.request.urlopen', side_effect=public), \
+             patch('time.sleep'):
+            runpy.run_path(str(SCRIPT), run_name='__main__')
+
+    def test_empty_embedded_assets_uses_asset_collection(self):
+        self.published_release()
+        self.assertIn('Published:', (self.root / 'summary.md').read_text())
+
+    def test_missing_public_asset_collection_still_fails(self):
+        with self.assertRaisesRegex(RuntimeError, 'not publicly complete'):
+            self.published_release(missing_public_assets=True)
 
 
 if __name__ == '__main__':

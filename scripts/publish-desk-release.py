@@ -91,9 +91,12 @@ else:
 if draft:
     gh('release', 'upload', tag, *[str(root / name) for name in checksums], '--repo', repo, '--clobber')
 
+# Query the asset collection explicitly. The release metadata response can
+# contain an empty embedded assets array even after all uploads are available.
 # Reruns must never replace published packages; verify them instead.
-release = json.loads(gh('release', 'view', tag, '--repo', repo, '--json', 'assets,isDraft'))
-assets = {asset['name']: asset for asset in release['assets']}
+release = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
+assets_path = f"repos/{repo}/releases/{release['id']}/assets?per_page=100"
+assets = {asset['name']: asset for asset in json.loads(gh('api', assets_path))}
 if set(assets) != set(checksums):
     raise RuntimeError('Release assets do not exactly match the complete package set')
 for name, digest in checksums.items():
@@ -111,8 +114,15 @@ for attempt in range(6):
     try:
         with urllib.request.urlopen(public_url, timeout=20) as response:
             public = json.load(response)
-        if public['draft'] or {a['name'] for a in public['assets']} != set(checksums):
+        if public['draft'] or public['id'] != release['id']:
+            raise RuntimeError('Release is not publicly available')
+        with urllib.request.urlopen(f'https://api.github.com/{assets_path}', timeout=20) as response:
+            public['assets'] = json.load(response)
+        if {a['name'] for a in public['assets']} != set(checksums):
             raise RuntimeError('Published release is not publicly complete')
+        for asset in public['assets']:
+            if asset.get('digest') != f"sha256:{checksums[asset['name']]}" or asset['state'] != 'uploaded':
+                raise RuntimeError(f"Public asset verification failed: {asset['name']}")
         break
     except Exception:
         if attempt == 5:

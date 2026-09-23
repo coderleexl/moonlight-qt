@@ -54,6 +54,8 @@ Windows 桌面环境下统一使用无边框全屏，以便工具栏能够显示
 
 两个 DEB 分别在对应发行版编译，不可混装。Debian 13 使用 `sudo apt install ./desk_版本_debian13_amd64.deb`，Ubuntu 24.04 使用 `sudo apt install ./desk_版本_ubuntu24.04_amd64.deb`，以便同时安装依赖。其他系统版本需要单独验证。各版本实际可下载的平台以 Release 的 Assets 为准。
 
+从 6.2.3 起，Debian 13 包以 FFmpeg 7.1.3 为构建基线，CI 同时检查 7.1.3 和当前 Debian 13 软件源环境，兼容尚未同步较新 FFmpeg 补丁版本的镜像。归档软件源和版本固定仅用于 CI 容器，不会写入用户系统；已安装的较新 FFmpeg 无需降级。使用自定义发行版软件源时，其他运行依赖仍需由该源提供。
+
 Windows 安装包未签名，macOS 使用临时签名且未进行 Apple 公证，系统可能要求确认打开。原版 Moonlight 的安装与设置不受影响；此前 Moonlight Desk Preview 的配置不会自动迁移到 Desk。
 
 ### 一次构建并自动发布

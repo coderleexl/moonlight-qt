@@ -33,6 +33,7 @@ private:
     int m_Hover = -1;
     int m_Pressed = -1;
     int m_KeyboardButton = -1;
-    int m_Width = 76;
+    int m_Width = 64;
+    Uint32 m_LastActiveTime = 0;
     float m_Scale = 1;
 };

@@ -28,6 +28,8 @@
 
 Windows、macOS 和 Linux X11 串流窗口顶部提供可展开的工具栏，跟随首页浅色／深色主题：
 
+收起时仅显示顶部小箭头，展开为紧凑单行控制条。macOS 使用系统原生毛玻璃、透明圆角与阴影；Windows／X11 使用半透明外观。切换焦点或重建串流窗口后会重新同步工具栏的位置和层级。
+
 - **鼠标：桌面／游戏**：切换本次会话的绝对定位／相对移动模式，收起工具栏或点击画面恢复控制。
 - **全屏／窗口化**：切换串流窗口显示模式。
 - **释放鼠标**：解除键鼠捕获，点击串流画面恢复控制。
@@ -93,10 +95,10 @@ CI 验证安装、启动和授权协议，不代替真实 GPU 串流、锁屏、
 Mac Apple Silicon 客户端开发（Qt 6.11，先准备上游 v17 macOS 依赖及客户端子模块）：
 
 ```sh
-qmake -r moonlight-qt.pro CONFIG+=host_preview QMAKE_APPLE_DEVICE_ARCHS=arm64
-make release -j8
-open app/Desk.app
+bash scripts/dev-macos.sh
 ```
+
+此命令只编译当前 Mac 的客户端，然后正常退出正在运行的 Desk、更新 `/Applications/Desk.app`、刷新 Spotlight 并启动新版。构建产物位于 `build/desk-macos-local/app/Desk.app`。已经编译完成时可用 `bash scripts/dev-macos.sh --install-only` 安装；退出超时会停止更新，不会强制杀进程或覆盖原版 Moonlight。
 
 完整安装包使用对应平台的脚本，所需依赖见工作流：
 

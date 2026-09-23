@@ -9,7 +9,7 @@
 #include <QtMath>
 
 #ifdef Q_OS_DARWIN
-void configureStreamToolbarMac(SDL_Window* toolbar, SDL_Window* stream);
+#include "streamtoolbar_mac.h"
 #endif
 
 namespace {
@@ -17,8 +17,8 @@ QString tr(const char* text)
 {
     return QCoreApplication::translate("StreamToolbar", text);
 }
-constexpr int ExpandedWidth = 600;
-constexpr int ExpandedHeight = 104;
+constexpr int ExpandedWidth = 552;
+constexpr int ExpandedHeight = 64;
 constexpr int CollapsedHeight = 26;
 
 struct RestoreGlContext {
@@ -42,16 +42,20 @@ StreamToolbar::StreamToolbar(SDL_Window* streamWindow, bool dark)
     if (!driver || (strcmp(driver, "cocoa") && strcmp(driver, "windows") && strcmp(driver, "x11"))) {
         return;
     }
+    Uint32 flags = SDL_WINDOW_HIDDEN | SDL_WINDOW_BORDERLESS | SDL_WINDOW_SKIP_TASKBAR |
+                   SDL_WINDOW_UTILITY | SDL_WINDOW_ALLOW_HIGHDPI;
+#ifndef Q_OS_DARWIN
+    flags |= SDL_WINDOW_ALWAYS_ON_TOP;
+#endif
     m_Window = SDL_CreateWindow("Desk — Session controls", SDL_WINDOWPOS_UNDEFINED,
                                SDL_WINDOWPOS_UNDEFINED, m_Width, CollapsedHeight,
-                               SDL_WINDOW_HIDDEN | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALWAYS_ON_TOP |
-                               SDL_WINDOW_SKIP_TASKBAR | SDL_WINDOW_UTILITY | SDL_WINDOW_ALLOW_HIGHDPI);
+                               flags);
     if (!m_Window) {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Session toolbar unavailable: %s", SDL_GetError());
         return;
     }
-#ifdef Q_OS_DARWIN
-    configureStreamToolbarMac(m_Window, m_StreamWindow);
+#ifndef Q_OS_DARWIN
+    SDL_SetWindowOpacity(m_Window, 0.94f);
 #endif
 }
 
@@ -98,7 +102,7 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
         scale = screens[display]->devicePixelRatio();
     }
 #endif
-    m_Width = m_Expanded ? ExpandedWidth : 76;
+    m_Width = m_Expanded ? ExpandedWidth : 64;
     m_Scale = qMin(scale, float(w) / float(m_Width + 16));
     int desiredW = qMax(1, qRound(m_Width * m_Scale));
     int desiredH = qMax(1, qRound((m_Expanded ? ExpandedHeight : CollapsedHeight) * m_Scale));
@@ -121,17 +125,38 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
     if (oldX != newX || oldY != newY) {
         SDL_SetWindowPosition(m_Window, newX, newY);
     }
-    if ((focus != m_StreamWindow && focus != m_Window) ||
-        (SDL_GetWindowFlags(m_StreamWindow) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN))) {
+    bool active = focus == m_StreamWindow || focus == m_Window;
+    if (active) m_LastActiveTime = SDL_GetTicks();
+#ifdef Q_OS_DARWIN
+    active = streamToolbarMacShouldShow(m_StreamWindow);
+#else
+    // Ignore brief null-focus intervals during window/fullscreen transitions.
+    if (!focus && SDL_GetTicks() - m_LastActiveTime < 500) active = true;
+    active = active && !(SDL_GetWindowFlags(m_StreamWindow) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN));
+#endif
+    if (!active) {
         SDL_HideWindow(m_Window);
         return;
     }
+#ifdef Q_OS_DARWIN
+    if (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_HIDDEN) {
+        const char* hint = "SDL_WINDOW_NO_ACTIVATION_WHEN_SHOWN";
+        const QByteArray previous = SDL_GetHint(hint);
+        SDL_SetHint(hint, "1");
+        SDL_ShowWindow(m_Window);
+        SDL_SetHint(hint, previous.isNull() ? "0" : previous.constData());
+        repaint = true;
+    }
+    // Native ordering shows the child without making it key or activating Desk.
+    repaint = syncStreamToolbarMac(m_Window, m_StreamWindow, m_Dark) || repaint;
+#else
     if (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_HIDDEN) {
         SDL_ShowWindow(m_Window);
         // Showing the tab must not steal keyboard focus from the remote session.
-        SDL_RaiseWindow(focus);
+        if (focus) SDL_RaiseWindow(focus);
         repaint = true;
     }
+#endif
     if (repaint) {
         paint();
     }
@@ -140,9 +165,11 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
 QRect StreamToolbar::buttonRect(int index) const
 {
     if (index == 4) {
-        return QRect(ExpandedWidth - 34, 5, 26, 22);
+        return QRect(516, 18, 28, 28);
     }
-    return QRect(12 + index * 145, 34, 137, 42);
+    const int x[] = {8, 142, 254, 388};
+    const int widths[] = {130, 108, 130, 120};
+    return QRect(x[index], 8, widths[index], 48);
 }
 
 int StreamToolbar::hitTest(int x, int y) const
@@ -265,25 +292,44 @@ StreamToolbar::Action StreamToolbar::handleEvent(const SDL_Event& event)
 
 void StreamToolbar::paint()
 {
-    if (!m_Window || (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_HIDDEN)) return;
+    if (!m_Window) return;
+#ifdef Q_OS_DARWIN
+    const QSize pixelSize = streamToolbarMacPixelSize(m_Window);
+    if (pixelSize.isEmpty()) return;
+#else
+    if (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_HIDDEN) return;
     // SDL may use a GPU to present a CPU-painted surface (required by Cocoa).
     // Restore the video renderer's GL context if presentation changes it.
     RestoreGlContext restoreContext;
     SDL_Surface* surface = SDL_GetWindowSurface(m_Window);
     if (!surface) return;
-    QImage image(surface->w, surface->h, QImage::Format_RGBA8888);
+    const QSize pixelSize(surface->w, surface->h);
+#endif
+    QImage image(pixelSize, QImage::Format_RGBA8888);
     const QColor bg(m_Dark ? "#202020" : "#FFFFFF");
     const QColor fg(m_Dark ? "#DDDDDD" : "#17212B");
     const QColor accent(m_Dark ? "#4DAAFC" : "#1677FF");
-    const QColor border(m_Dark ? "#414141" : "#DCE5F0");
-    image.fill(bg);
+    image.fill(Qt::transparent);
     QPainter p(&image);
     p.setRenderHint(QPainter::Antialiasing);
-    p.scale(double(surface->w) / m_Width, double(surface->h) / (m_Expanded ? ExpandedHeight : CollapsedHeight));
-    p.setPen(border);
-    p.drawRect(QRectF(0.5, 0.5, m_Width - 1, (m_Expanded ? ExpandedHeight : CollapsedHeight) - 1));
+    p.scale(double(image.width()) / m_Width, double(image.height()) / (m_Expanded ? ExpandedHeight : CollapsedHeight));
+    const int height = m_Expanded ? ExpandedHeight : CollapsedHeight;
+    const qreal radius = qMin(16, height / 2);
+    QLinearGradient sheen(0, 0, 0, height);
+#ifdef Q_OS_DARWIN
+    sheen.setColorAt(0, m_Dark ? QColor(255, 255, 255, 20) : QColor(255, 255, 255, 100));
+    sheen.setColorAt(1, m_Dark ? QColor(255, 255, 255, 3) : QColor(255, 255, 255, 26));
+    p.setPen(QColor(255, 255, 255, m_Dark ? 38 : 130));
+#else
+    image.fill(bg);
+    sheen.setColorAt(0, bg.lighter(110));
+    sheen.setColorAt(1, bg);
+    p.setPen(QColor(m_Dark ? "#414141" : "#DCE5F0"));
+#endif
+    p.setBrush(sheen);
+    p.drawRoundedRect(QRectF(0.5, 0.5, m_Width - 1, height - 1), radius, radius);
     QFont font = QGuiApplication::font();
-    font.setPixelSize(12);
+    font.setPixelSize(11);
     p.setFont(font);
     auto chevron = [&](int x, int y, bool up) {
         p.setPen(QPen(accent, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
@@ -294,21 +340,17 @@ void StreamToolbar::paint()
         p.drawPath(path);
     };
     if (!m_Expanded) {
-        p.setPen(fg);
-        p.drawText(QRect(9, 0, 38, CollapsedHeight), Qt::AlignCenter, "Desk");
-        chevron(59, 13, false);
+        chevron(32, 13, false);
     }
     else {
-        p.setPen(fg);
-        p.drawText(QRect(14, 4, 540, 24), Qt::AlignVCenter, tr("Session controls"));
         const QString labels[] = {m_AbsoluteMouse ? tr("Mouse: Desktop") : tr("Mouse: Game"),
                                   m_Fullscreen ? tr("Windowed") : tr("Fullscreen"),
                                   tr("Release mouse"), tr("Disconnect")};
         for (int i = 0; i < 5; i++) {
             const QRect r = buttonRect(i);
-            p.setPen(i == m_KeyboardButton ? QPen(accent, 2) : QPen(border));
-            p.setBrush(i == m_Hover ? QColor(m_Dark ? "#363636" : "#E7F0FF") : bg);
-            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 6, 6);
+            p.setPen(i == m_KeyboardButton ? QPen(accent, 1.5) : QPen(Qt::NoPen));
+            p.setBrush(i == m_Hover ? QColor(m_Dark ? "#394653" : "#DDEBFA") : QColor(255, 255, 255, m_Dark ? 8 : 35));
+            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 10, 10);
             if (i == 4) {
                 chevron(r.center().x(), r.center().y(), true);
                 continue;
@@ -338,13 +380,11 @@ void StreamToolbar::paint()
             QRect textRect = r.adjusted(34, 0, -5, 0);
             p.drawText(textRect, Qt::AlignCenter, p.fontMetrics().elidedText(labels[i], Qt::ElideRight, textRect.width()));
         }
-        p.setPen(QColor(m_Dark ? "#A0A0A0" : "#657184"));
-        font.setPixelSize(11);
-        p.setFont(font);
-        p.drawText(QRect(12, 78, 576, 23), Qt::AlignCenter,
-                   tr("Ctrl+Alt+Shift+T: toolbar · Q: disconnect · Z: release mouse"));
     }
     p.end();
+#ifdef Q_OS_DARWIN
+    presentStreamToolbarMac(m_Window, image);
+#else
     SDL_Surface* pixels = SDL_CreateRGBSurfaceWithFormatFrom(image.bits(), image.width(), image.height(),
                                                             32, image.bytesPerLine(), SDL_PIXELFORMAT_RGBA32);
     if (pixels) {
@@ -352,4 +392,5 @@ void StreamToolbar::paint()
         SDL_FreeSurface(pixels);
         SDL_UpdateWindowSurface(m_Window);
     }
+#endif
 }

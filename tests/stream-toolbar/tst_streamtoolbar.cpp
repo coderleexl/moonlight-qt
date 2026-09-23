@@ -4,6 +4,12 @@
 #include <QTest>
 #include <QTranslator>
 
+#ifdef Q_OS_DARWIN
+void loseToolbarNativeState(SDL_Window* panel);
+bool checkToolbarNativeState(SDL_Window* panel, SDL_Window* stream);
+void saveToolbarNativeScreenshot(SDL_Window* panel, const char* path);
+#endif
+
 class ToolbarTest : public QObject
 {
     Q_OBJECT
@@ -17,7 +23,10 @@ private slots:
             StreamToolbar toolbar(stream, false);
             QVERIFY(toolbar.available());
             SDL_RaiseWindow(stream);
+#ifndef Q_OS_DARWIN
             QTRY_VERIFY_WITH_TIMEOUT((SDL_PumpEvents(), SDL_GetKeyboardFocus() == stream), 2000);
+#endif
+            SDL_PumpEvents();
             toolbar.sync(true, false);
             SDL_Window* panel = nullptr;
             for (Uint32 id = 1; id < 10; ++id) {
@@ -42,8 +51,9 @@ private slots:
                 e.type = SDL_MOUSEBUTTONDOWN;
                 e.button.windowID = panelId;
                 e.button.button = SDL_BUTTON_LEFT;
-                e.button.x = (12 + index * 145 + 68) * width / 600;
-                e.button.y = 55 * height / 104;
+                const int centers[] = {73, 196, 319, 448};
+                e.button.x = centers[index] * width / 552;
+                e.button.y = height / 2;
                 toolbar.handleEvent(e);
                 e.type = SDL_MOUSEBUTTONUP;
                 return toolbar.handleEvent(e);
@@ -80,6 +90,22 @@ private slots:
             SDL_PumpEvents();
             toolbar.sync(false, true);
             QCOMPARE(click(3), StreamToolbar::Action::Disconnect);
+#ifdef Q_OS_DARWIN
+            QTRY_VERIFY_WITH_TIMEOUT((SDL_PumpEvents(), toolbar.sync(false, true), checkToolbarNativeState(panel, stream)), 2000);
+            // Regression: Cocoa can hide/detach a child during renderer/window
+            // transitions. Recover both visibility and native parent binding.
+            for (int cycle = 0; cycle < 3; ++cycle) {
+                loseToolbarNativeState(panel);
+                QVERIFY(!checkToolbarNativeState(panel, stream));
+                toolbar.sync(true, false);
+                QVERIFY(checkToolbarNativeState(panel, stream));
+                QCOMPARE(key(SDLK_ESCAPE), StreamToolbar::Action::ResumeInput);
+                toolbar.sync(true, false);
+                QVERIFY(checkToolbarNativeState(panel, stream));
+                QCOMPARE(key(SDLK_t, combo), StreamToolbar::Action::ReleaseInput);
+            }
+            saveToolbarNativeScreenshot(panel, "toolbar-light.png");
+#else
             SDL_Surface* surface = SDL_GetWindowSurface(panel);
             QVERIFY2(surface, SDL_GetError());
             SDL_Surface* rgba = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
@@ -87,23 +113,35 @@ private slots:
             QImage image(static_cast<uchar*>(rgba->pixels), rgba->w, rgba->h, rgba->pitch, QImage::Format_RGBA8888);
             QVERIFY(image.save("toolbar-light.png"));
             SDL_FreeSurface(rgba);
+#endif
             toolbar.close();
             QVERIFY(!toolbar.available());
         }
         {
             StreamToolbar dark(stream, true);
             SDL_RaiseWindow(stream);
+#ifndef Q_OS_DARWIN
             QTRY_VERIFY_WITH_TIMEOUT((SDL_PumpEvents(), SDL_GetKeyboardFocus() == stream), 2000);
+#endif
+            SDL_PumpEvents();
             dark.sync(true, false);
             SDL_Event e = {};
             e.type = SDL_KEYDOWN;
             e.key.keysym.sym = SDLK_t;
             e.key.keysym.mod = KMOD_CTRL | KMOD_ALT | KMOD_SHIFT;
             QCOMPARE(dark.handleEvent(e), StreamToolbar::Action::ReleaseInput);
-            QTRY_VERIFY_WITH_TIMEOUT((SDL_PumpEvents(), SDL_GetKeyboardFocus() != stream && SDL_GetKeyboardFocus()), 2000);
+            SDL_PumpEvents();
             dark.sync(true, false);
-            SDL_Window* panel = SDL_GetKeyboardFocus();
+            SDL_Window* panel = nullptr;
+            for (Uint32 id = 1; id < 10; ++id) {
+                SDL_Window* candidate = SDL_GetWindowFromID(id);
+                if (candidate && candidate != stream) panel = candidate;
+            }
             QVERIFY(panel && panel != stream);
+#ifdef Q_OS_DARWIN
+            QTRY_VERIFY_WITH_TIMEOUT((SDL_PumpEvents(), dark.sync(true, false), checkToolbarNativeState(panel, stream)), 2000);
+            saveToolbarNativeScreenshot(panel, "toolbar-dark.png");
+#else
             SDL_Surface* surface = SDL_GetWindowSurface(panel);
             QVERIFY2(surface, SDL_GetError());
             SDL_Surface* rgba = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
@@ -111,6 +149,7 @@ private slots:
             QImage image(static_cast<uchar*>(rgba->pixels), rgba->w, rgba->h, rgba->pitch, QImage::Format_RGBA8888);
             QVERIFY(image.save("toolbar-dark.png"));
             SDL_FreeSurface(rgba);
+#endif
         }
         SDL_DestroyWindow(stream);
         SDL_Quit();

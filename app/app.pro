@@ -239,6 +239,7 @@ HEADERS += \
     streaming/input/input.h \
     streaming/session.h \
     streaming/streamtoolbar.h \
+    streaming/streamtoolbar_mac.h \
     streaming/audio/renderers/renderer.h \
     streaming/audio/renderers/sdl.h \
     gui/computermodel.h \

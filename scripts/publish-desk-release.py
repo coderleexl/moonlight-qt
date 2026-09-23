@@ -22,7 +22,8 @@ root = Path('build/release')
 expected = {
     'windows': {'Desk-Setup-x64.exe', 'Desk-x64.zip'},
     'macos': {'Desk-macOS-arm64.dmg'},
-    'linux': {f'desk_{version}_amd64.deb'},
+    'linux-ubuntu24.04': {f'desk_{version}_ubuntu24.04_amd64.deb'},
+    'linux-debian13': {f'desk_{version}_debian13_amd64.deb'},
 }
 checksums = {}
 for platform, names in expected.items():
@@ -61,17 +62,20 @@ notes.write_text(f'''## Desk {version}
 | --- | --- |
 | Windows x64 | `Desk-Setup-x64.exe`（安装版）或 `Desk-x64.zip`（免安装） |
 | macOS Apple Silicon | `Desk-macOS-arm64.dmg`，将 Desk 拖入 Applications |
-| Ubuntu 24.04 amd64 | `desk_{version}_amd64.deb`，使用 `sudo apt install ./desk_{version}_amd64.deb` |
+| Ubuntu 24.04 amd64 | `desk_{version}_ubuntu24.04_amd64.deb`，使用 `sudo apt install ./desk_{version}_ubuntu24.04_amd64.deb` |
+| Debian 13 amd64 | `desk_{version}_debian13_amd64.deb`，使用 `sudo apt install ./desk_{version}_debian13_amd64.deb` |
+
+两个 DEB 分别在对应发行版编译并进行干净环境安装测试，请按系统版本选择，不要混装。
 
 ### 主机功能
 
-在“本机”页启动内置 Sunshine；允许其他局域网设备连接时，先关闭“仅本机测试”。连接地址为 `主机 IP:48989`，管理网页为主机上的 `https://127.0.0.1:48990`。配对 PIN 在管理网页输入，不会自动弹出 Windows 输入框。
+在“本机”页启动内置 Sunshine；允许其他局域网设备连接时，先关闭“仅本机测试”。连接地址为 `主机 IP:48989`，管理网页为主机上的 `https://127.0.0.1:48990`。Desk 主机支持设备识别码与访问密码连接，无需网页输入配对 PIN；连接原版 Sunshine 时仍使用 PIN 配对。
 
 退出 Desk 会停止它启动的主机进程，不安装 Sunshine 系统服务。macOS 需授予屏幕录制及辅助功能权限；Linux 使用 X11 或 Wayland/Portal 捕获，并为活动桌面用户安装 uinput/uhid 规则，不授予 cap_sys_admin。Linux 直接 KMS 捕获和 NVFBC 未启用。
 
 ### 验证与限制
 
-三端通过构建、主机进程管理、客户端及内置 Sunshine Web 启动检查；Windows/DEB 另有安装和卸载检查。CI 不验证真实 GPU 串流、锁屏或 UAC。
+三端通过构建、主机进程管理、客户端及内置 Sunshine Web 启动检查；Windows/DEB 另有安装和卸载检查；两个 DEB 还分别在干净的 Debian 13 / Ubuntu 24.04 容器验证依赖安装、GUI 启动和主机授权协议。CI 不验证真实 GPU 串流、锁屏或 UAC。
 
 Windows 安装包未签名；macOS 为临时签名，未进行 Apple 公证，系统可能要求在安全设置中确认打开。macOS 包在 macOS 26 ARM64 上构建；其他系统版本与 Linux 发行版兼容性需分别验证。
 

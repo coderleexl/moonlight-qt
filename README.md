@@ -49,9 +49,10 @@ Windows 桌面环境下统一使用无边框全屏，以便工具栏能够显示
 | --- | --- | --- |
 | Windows | `Desk-Setup-x64.exe` 或 `Desk-x64.zip`，二选一 | Windows x64 |
 | macOS | `Desk-macOS-arm64.dmg`，拖入 Applications | Apple Silicon；macOS 26 构建 |
-| Linux | `desk_版本_amd64.deb` | Ubuntu 24.04 amd64 |
+| Ubuntu | `desk_版本_ubuntu24.04_amd64.deb` | Ubuntu 24.04 amd64 |
+| Debian | `desk_版本_debian13_amd64.deb` | Debian 13 amd64 |
 
-DEB 使用 `sudo apt install ./desk_版本_amd64.deb` 安装，以便同时安装依赖。其他 Debian/Ubuntu 版本需要单独验证。各版本实际可下载的平台以 Release 的 Assets 为准。
+两个 DEB 分别在对应发行版编译，不可混装。Debian 13 使用 `sudo apt install ./desk_版本_debian13_amd64.deb`，Ubuntu 24.04 使用 `sudo apt install ./desk_版本_ubuntu24.04_amd64.deb`，以便同时安装依赖。其他系统版本需要单独验证。各版本实际可下载的平台以 Release 的 Assets 为准。
 
 Windows 安装包未签名，macOS 使用临时签名且未进行 Apple 公证，系统可能要求确认打开。原版 Moonlight 的安装与设置不受影响；此前 Moonlight Desk Preview 的配置不会自动迁移到 Desk。
 
@@ -59,10 +60,10 @@ Windows 安装包未签名，macOS 使用临时签名且未进行 Apple 公证�
 
 打开 [Desk Build and Release](https://github.com/coderleexl/moonlight-qt/actions/workflows/build-desk.yml)，点击 **Run workflow**。`publish` 默认开启：
 
-1. Windows、macOS、Linux 三个 job 并行编译并打包。
+1. Windows、macOS、Ubuntu 24.04、Debian 13 四个 job 并行编译并打包。
 2. 各平台执行主机进程管理、客户端及内置 Sunshine 启动检查，以及真实主机的正确／错误密码、证书重连、取消授权请求和限流测试；Windows 和 DEB 另做安装／卸载检查。
-3. 发布 job 校验四个安装包均来自当前提交，并验证 SHA-256。
-4. 创建 `desk-v版本` 标签，将 EXE、ZIP、DMG、DEB 和 `SHA256SUMS.txt` 上传到同一个 Release。
+3. 两个 DEB 另在干净的对应发行版容器验证依赖安装、GUI 启动及主机授权。发布 job 校验五个安装包均来自当前提交，并验证 SHA-256。
+4. 创建 `desk-v版本` 标签，将 EXE、ZIP、DMG、两个 DEB 和 `SHA256SUMS.txt` 上传到同一个 Release。
 5. 上传完整后公开发布，再以未登录请求确认 Release 可访问。任何一步失败都会令工作流失败，不会把残缺包发布为正式版本。
 
 发布版本取自 `app/version.txt`。发布新版本前先递增版本号；已发布标签不会被移动，已公开安装包不会被覆盖。同一提交的重试会校验已发布内容。也可以推送与版本号一致的 `desk-v*` 标签，自动触发同一流程。关闭 `publish` 则只在 Actions Artifacts 中保留测试包。

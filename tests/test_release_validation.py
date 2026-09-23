@@ -26,7 +26,8 @@ class ReleaseValidationTest(unittest.TestCase):
         for platform, names in {
             'windows': ['Desk-Setup-x64.exe', 'Desk-x64.zip'],
             'macos': ['Desk-macOS-arm64.dmg'],
-            'linux': ['desk_6.1.1_amd64.deb'],
+            'linux-ubuntu24.04': ['desk_6.1.1_ubuntu24.04_amd64.deb'],
+            'linux-debian13': ['desk_6.1.1_debian13_amd64.deb'],
         }.items():
             files = {}
             for name in names:
@@ -46,8 +47,15 @@ class ReleaseValidationTest(unittest.TestCase):
             self.assertEqual(reads.call_count, 1)  # Only git rev-parse; no GitHub calls.
 
     def test_missing_platform_stops_publication(self):
-        (self.root / 'manifest-linux.json').unlink()
+        (self.root / 'manifest-linux-debian13.json').unlink()
         self.reject(FileNotFoundError)
+
+    def test_ubuntu_package_cannot_replace_debian_package(self):
+        path = self.root / 'manifest-linux-debian13.json'
+        data = json.loads(path.read_text())
+        data['files'] = json.loads((self.root / 'manifest-linux-ubuntu24.04.json').read_text())['files']
+        path.write_text(json.dumps(data))
+        self.reject(RuntimeError)
 
     def test_different_commit_stops_publication(self):
         path = self.root / 'manifest-macos.json'

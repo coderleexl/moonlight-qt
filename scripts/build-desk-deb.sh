@@ -3,6 +3,12 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 jobs="${JOBS:-4}"
+. /etc/os-release
+case "$ID:$VERSION_ID" in
+  debian:13) distro=debian13; distro_name='Debian 13' ;;
+  ubuntu:24.04) distro=ubuntu24.04; distro_name='Ubuntu 24.04' ;;
+  *) echo "Unsupported DEB build system: $ID $VERSION_ID" >&2; exit 1 ;;
+esac
 python3 scripts/prepare-desk-translations.py
 version="$(cat app/version.txt)"
 arch="$(dpkg --print-architecture)"
@@ -39,8 +45,8 @@ install -m755 "$repo_root/packaging/linux/postinst" "$stage/DEBIAN/postinst"
 cp "$repo_root/LICENSE" "$stage/usr/share/doc/desk/Moonlight-LICENSE"
 cp "$repo_root/third_party/sunshine/LICENSE" "$stage/usr/share/doc/desk/Sunshine-LICENSE"
 printf 'Upstream: https://github.com/LizardByte/Sunshine\n%s\nDesk modifications: https://github.com/coderleexl/moonlight-qt/tree/%s/patches/sunshine\n' "$COMMIT" "$(git rev-parse HEAD)" > "$stage/usr/share/doc/desk/SOURCE.txt"
-cat > "$stage/usr/share/doc/desk/README" <<'EOF'
-Desk for Ubuntu 24.04 amd64
+cat > "$stage/usr/share/doc/desk/README" <<EOF
+Desk for $distro_name amd64
 Includes Sunshine; no separate host installation is needed.
 Start hosting in Desk. Disable Local test only to allow LAN connections.
 The host exits with Desk. No system service or automatic startup is installed.
@@ -77,7 +83,7 @@ Depends: $elf_deps, qml6-module-qtquick, qml6-module-qtquick-window, qml6-module
 Recommends: xdg-desktop-portal
 Description: Desk remote desktop streaming with integrated Sunshine
  Native Qt desktop client and a private, application-managed Sunshine host.
- Built for Ubuntu 24.04 amd64. No Sunshine system service is installed.
+ Built for $distro_name amd64. No Sunshine system service is installed.
 EOF
 chmod -R go-w "$stage"
-dpkg-deb --root-owner-group --build "$stage" "$repo_root/build/dist/desk_${version}_${arch}.deb"
+dpkg-deb --root-owner-group --build "$stage" "$repo_root/build/dist/desk_${version}_${distro}_${arch}.deb"

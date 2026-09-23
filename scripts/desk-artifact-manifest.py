@@ -11,7 +11,8 @@ version = Path('app/version.txt').read_text().strip()
 expected = {
     'windows': ['Desk-Setup-x64.exe', 'Desk-x64.zip'],
     'macos': ['Desk-macOS-arm64.dmg'],
-    'linux': [f'desk_{version}_amd64.deb'],
+    'linux-ubuntu24.04': [f'desk_{version}_ubuntu24.04_amd64.deb'],
+    'linux-debian13': [f'desk_{version}_debian13_amd64.deb'],
 }[platform]
 root = Path('build/dist')
 files = {}

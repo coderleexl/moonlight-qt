@@ -571,6 +571,10 @@
         <source>Authorizing this device…</source>
         <translation>正在授權此裝置…</translation>
     </message>
+    <message>
+        <source>Looking for this device on the local network…</source>
+        <translation>正在區域網路內尋找裝置…</translation>
+    </message>
 </context>
     <context>
         <name>PendingPairingTask</name>
@@ -1645,6 +1649,10 @@
         <source>Enter a device ID or IP address (Desk uses port 48989):</source>
         <translation>輸入裝置識別碼或 IP 位址（Desk 連接埠為 48989）：</translation>
     </message>
+    <message>
+        <source>Enter the other computer's 9-digit device ID or IP address. Device IDs are looked up on the local network; the access password is entered next.</source>
+        <translation>輸入對方的 9 位裝置識別碼或 IP 位址。識別碼將在區域網路內尋找，找到後再輸入存取密碼。</translation>
+    </message>
 </context>
 <context>
     <name>HostView</name>
@@ -1826,6 +1834,30 @@
     <message>
         <source>Unable to reset access. Stop sharing and check that the host configuration is writable.</source>
         <translation>無法重設存取權限。請先停止共享，並確認主機設定目錄可寫入。</translation>
+    </message>
+    <message>
+        <source>Change access password</source>
+        <translation>修改存取密碼</translation>
+    </message>
+    <message>
+        <source>Change password</source>
+        <translation>修改密碼</translation>
+    </message>
+    <message>
+        <source>Unable to change the password. Stop sharing and check that the host configuration is writable.</source>
+        <translation>無法修改密碼。請停止共享，並確認主機設定可寫入。</translation>
+    </message>
+    <message>
+        <source>Use 6–64 letters, numbers or symbols without spaces. Changing the password revokes saved device authorizations.</source>
+        <translation>請輸入 6–64 位英文字母、數字或符號，不含空格。修改密碼會撤銷已儲存的裝置授權。</translation>
+    </message>
+    <message>
+        <source>New password</source>
+        <translation>新密碼</translation>
+    </message>
+    <message>
+        <source>Confirm password</source>
+        <translation>確認密碼</translation>
     </message>
 </context>
 <context>

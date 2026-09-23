@@ -264,6 +264,14 @@ int ComputerModel::findDevice(const QString& identifier) const
     return result;
 }
 
+bool ComputerModel::isComputerOnline(int computerIndex) const
+{
+    if (computerIndex < 0 || computerIndex >= m_Computers.count())
+        return false;
+    QReadLocker lock(&m_Computers[computerIndex]->lock);
+    return m_Computers[computerIndex]->state == NvComputer::CS_ONLINE;
+}
+
 void ComputerModel::handleComputerStateChanged(NvComputer* computer)
 {
     QVector<NvComputer*> newComputerList = m_ComputerManager->getComputers();

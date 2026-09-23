@@ -24,6 +24,57 @@ FocusScope {
         id: accessError
         standardButtons: Dialog.Ok
     }
+    NavigableDialog {
+        id: changePasswordDialog
+        objectName: "changeHostPasswordDialog"
+        title: qsTr("Change access password")
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        function updateButton() {
+            var button = standardButton(Dialog.Ok);
+            if (button) button.enabled = /^[!-~]{6,64}$/.test(newPassword.text) && newPassword.text === confirmPassword.text;
+        }
+        onOpened: {
+            newPassword.clear();
+            confirmPassword.clear();
+            newPassword.forceActiveFocus();
+            updateButton();
+        }
+        onClosed: { newPassword.clear(); confirmPassword.clear(); }
+        onAccepted: {
+            if (!SunshineManager.setAccessPassword(newPassword.text)) {
+                accessError.text = qsTr("Unable to change the password. Stop sharing and check that the host configuration is writable.");
+                accessError.open();
+            }
+        }
+        ColumnLayout {
+            width: parent.width
+            spacing: 12
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: qsTr("Use 6–64 letters, numbers or symbols without spaces. Changing the password revokes saved device authorizations.")
+            }
+            TextField {
+                id: newPassword
+                objectName: "newHostPassword"
+                Layout.fillWidth: true
+                placeholderText: qsTr("New password")
+                echoMode: TextInput.Password
+                maximumLength: 64
+                onTextChanged: changePasswordDialog.updateButton()
+            }
+            TextField {
+                id: confirmPassword
+                objectName: "confirmHostPassword"
+                Layout.fillWidth: true
+                placeholderText: qsTr("Confirm password")
+                echoMode: TextInput.Password
+                maximumLength: 64
+                onTextChanged: changePasswordDialog.updateButton()
+                onAccepted: if (changePasswordDialog.standardButton(Dialog.Ok).enabled) changePasswordDialog.accept()
+            }
+        }
+    }
     ScrollView {
         id: scroll
         objectName: "hostPageScroll"
@@ -157,6 +208,11 @@ FocusScope {
                         id: showPassword
                         text: qsTr("Show password")
                         Layout.fillWidth: true
+                    }
+                    ActionButton {
+                        text: qsTr("Change password")
+                        enabled: !hostPage.running && !hostPage.busy
+                        onClicked: changePasswordDialog.open()
                     }
                     ActionButton {
                         text: qsTr("Reset access")

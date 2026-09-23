@@ -571,6 +571,10 @@
         <source>Authorizing this device…</source>
         <translation>正在授权此设备…</translation>
     </message>
+    <message>
+        <source>Looking for this device on the local network…</source>
+        <translation>正在局域网内查找设备…</translation>
+    </message>
 </context>
     <context>
         <name>PendingPairingTask</name>
@@ -1645,6 +1649,10 @@
         <source>Enter a device ID or IP address (Desk uses port 48989):</source>
         <translation>输入设备识别码或 IP 地址（Desk 端口为 48989）：</translation>
     </message>
+    <message>
+        <source>Enter the other computer's 9-digit device ID or IP address. Device IDs are looked up on the local network; the access password is entered next.</source>
+        <translation>输入对方的 9 位设备识别码或 IP 地址。识别码将在局域网内查找，找到后再输入访问密码。</translation>
+    </message>
 </context>
 <context>
     <name>HostView</name>
@@ -1826,6 +1834,30 @@
     <message>
         <source>Unable to reset access. Stop sharing and check that the host configuration is writable.</source>
         <translation>无法重置访问权限。请先停止共享，并确认主机配置目录可写入。</translation>
+    </message>
+    <message>
+        <source>Change access password</source>
+        <translation>修改访问密码</translation>
+    </message>
+    <message>
+        <source>Change password</source>
+        <translation>修改密码</translation>
+    </message>
+    <message>
+        <source>Unable to change the password. Stop sharing and check that the host configuration is writable.</source>
+        <translation>无法修改密码。请停止共享，并确认主机配置可写。</translation>
+    </message>
+    <message>
+        <source>Use 6–64 letters, numbers or symbols without spaces. Changing the password revokes saved device authorizations.</source>
+        <translation>请输入 6–64 位英文字母、数字或符号，不含空格。修改密码会撤销已保存的设备授权。</translation>
+    </message>
+    <message>
+        <source>New password</source>
+        <translation>新密码</translation>
+    </message>
+    <message>
+        <source>Confirm password</source>
+        <translation>确认密码</translation>
     </message>
 </context>
 <context>

@@ -94,7 +94,9 @@ if draft:
 # Query the asset collection explicitly. The release metadata response can
 # contain an empty embedded assets array even after all uploads are available.
 # Reruns must never replace published packages; verify them instead.
-release = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
+# Draft releases must be resolved through the authenticated release command.
+release = json.loads(gh('release', 'view', tag, '--repo', repo, '--json', 'databaseId'))
+release['id'] = release['databaseId']
 assets_path = f"repos/{repo}/releases/{release['id']}/assets?per_page=100"
 assets = {asset['name']: asset for asset in json.loads(gh('api', assets_path))}
 if set(assets) != set(checksums):

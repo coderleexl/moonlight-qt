@@ -179,6 +179,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/test-preview-windows.ps1
+      - name: Test device ID lookup (macOS)
+        if: runner.os == 'macOS'
+        run: QT_QPA_PLATFORM=offscreen qmltestrunner -input tests/device-lookup -o -,txt
       - name: Test macOS disk image and bundled host
         if: runner.os == 'macOS'
         run: bash scripts/test-desk-macos.sh

@@ -39,6 +39,7 @@ public:
 
     Q_INVOKABLE int findDevice(const QString& identifier) const;
     Q_INVOKABLE QString computerUuid(int computerIndex) const;
+    Q_INVOKABLE bool isComputerOnline(int computerIndex) const;
 
     Q_INVOKABLE void pairComputer(int computerIndex, QString pin);
 

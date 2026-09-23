@@ -14,13 +14,13 @@
    namespace fs = std::filesystem;
    namespace pt = boost::property_tree;
 +
-+  // Desk supplies a 128-bit random access secret through the child environment.
++  // Desk supplies the access password through the child environment.
 +  // Never advertise or log the secret. Stock Sunshine has no Desk environment.
 +  const std::string &desk_password() {
 +    static const std::string password = [] {
 +      const char *value = std::getenv("DESK_ACCESS_PASSWORD");
 +      std::string text = value ? value : "";
-+      if (text.size() != 22 || text.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-") != std::string::npos) {
++      if (text.size() < 6 || text.size() > 64 || std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 33 || c > 126; })) {
 +        return std::string {};
 +      }
 +      return text;

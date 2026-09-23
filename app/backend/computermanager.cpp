@@ -369,16 +369,7 @@ void ComputerManager::startPolling()
     if (m_Prefs->enableMdns) {
         // Start an MDNS query for GameStream hosts
         m_MdnsServer.reset(new QMdnsEngine::Server());
-        m_MdnsBrowser = new QMdnsEngine::Browser(m_MdnsServer.data(), "_nvstream._tcp.local.");
-        connect(m_MdnsBrowser, &QMdnsEngine::Browser::serviceAdded,
-                this, [this](const QMdnsEngine::Service& service) {
-            qInfo() << "Discovered mDNS host:" << service.hostname();
-
-            MdnsPendingComputer* pendingComputer = new MdnsPendingComputer(m_MdnsServer, service);
-            connect(pendingComputer, &MdnsPendingComputer::resolvedHost,
-                    this, &ComputerManager::handleMdnsServiceResolved);
-            m_PendingResolution.append(pendingComputer);
-        });
+        startMdnsBrowser();
     }
     else {
         qWarning() << "mDNS is disabled by user preference";
@@ -390,6 +381,30 @@ void ComputerManager::startPolling()
         i.next();
         startPollingComputer(i.value());
     }
+}
+
+void ComputerManager::startMdnsBrowser()
+{
+    m_MdnsBrowser = new QMdnsEngine::Browser(m_MdnsServer.data(), "_nvstream._tcp.local.");
+    connect(m_MdnsBrowser, &QMdnsEngine::Browser::serviceAdded,
+            this, [this](const QMdnsEngine::Service& service) {
+        qInfo() << "Discovered mDNS host:" << service.hostname();
+        auto* pendingComputer = new MdnsPendingComputer(m_MdnsServer, service);
+        connect(pendingComputer, &MdnsPendingComputer::resolvedHost,
+                this, &ComputerManager::handleMdnsServiceResolved);
+        m_PendingResolution.append(pendingComputer);
+    });
+}
+
+void ComputerManager::refreshDiscovery()
+{
+    QWriteLocker lock(&m_Lock);
+    if (!m_Prefs->enableMdns || m_PollingRef == 0 || !m_MdnsServer)
+        return;
+    // Restart the browser's query schedule without interrupting host polling
+    // or in-flight address resolution. A device ID cannot be routed directly.
+    delete m_MdnsBrowser;
+    startMdnsBrowser();
 }
 
 // Must hold m_Lock for write

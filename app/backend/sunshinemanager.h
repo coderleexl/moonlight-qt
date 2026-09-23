@@ -51,6 +51,7 @@ public:
     Q_INVOKABLE void openScreenRecordingSettings();
     Q_INVOKABLE void openAccessibilitySettings();
     Q_INVOKABLE bool resetAccess();
+    Q_INVOKABLE bool setAccessPassword(const QString& password);
 
 signals:
     void stateChanged();

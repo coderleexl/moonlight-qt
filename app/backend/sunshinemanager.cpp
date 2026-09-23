@@ -204,7 +204,16 @@ bool SunshineManager::prepareAccess()
 
 bool SunshineManager::resetAccess()
 {
-    if (m_Process.state() != QProcess::NotRunning)
+    QString password;
+    do {
+        password = DeskAccess::newPassword();
+    } while (password == m_AccessPassword);
+    return setAccessPassword(password);
+}
+
+bool SunshineManager::setAccessPassword(const QString& password)
+{
+    if (m_Process.state() != QProcess::NotRunning || !DeskAccess::validPassword(password))
         return false;
     // Revoke certificates before changing the password, and preserve host UUID,
     // Web UI credentials, and all unrelated Sunshine state.
@@ -231,7 +240,7 @@ bool SunshineManager::resetAccess()
         if (output.write(data) != data.size() || !output.commit())
             return false;
     }
-    return saveAccess(DeskAccess::validId(m_DeviceId) ? m_DeviceId : DeskAccess::newId(), DeskAccess::newPassword());
+    return saveAccess(DeskAccess::validId(m_DeviceId) ? m_DeviceId : DeskAccess::newId(), password);
 }
 
 void SunshineManager::setLocalOnly(bool localOnly)

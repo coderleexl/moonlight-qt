@@ -91,10 +91,9 @@ def handshake(password, key, cert, pem, should_accept):
     return server_pem
 
 
-def run(helper):
+def run(helper, secret):
     with tempfile.TemporaryDirectory(prefix='desk-access-ci-') as temp:
         directory = Path(temp)
-        secret = secrets.token_urlsafe(16)
         device_id = '123456789'
         (directory / 'credentials').mkdir()
         (directory / 'apps.json').write_text('{"apps": [{"name": "Desktop"}]}')
@@ -165,4 +164,5 @@ def run(helper):
 
 
 if __name__ == '__main__':
-    run(Path(sys.argv[1]).resolve())
+    for secret in ('654321', 'Desk-Office!42', secrets.token_urlsafe(16)):
+        run(Path(sys.argv[1]).resolve(), secret)

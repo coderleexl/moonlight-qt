@@ -85,7 +85,11 @@ FocusScope {
         if (pcList.currentIndex < 0 && pcList.count > 0)
             pcList.currentIndex = 0;
     }
-    StackView.onDeactivating: ComputerManager.computerAddCompleted.disconnect(addComplete)
+    StackView.onDeactivating: {
+        ComputerManager.computerAddCompleted.disconnect(addComplete);
+        deviceLookup.cancel();
+        lookupProgress.close();
+    }
 
     Connections {
         target: computerModel
@@ -106,17 +110,44 @@ FocusScope {
     }
 
     function connectById(deviceId) {
-        var index = computerModel.findDevice(deviceId);
-        if (index < 0) {
-            errorDialog.text = index === -2 ? qsTr("More than one device has this ID. Select the device from the list or use its IP address.") : qsTr("Device not found. Start sharing on the other computer and check that both devices are on the same local network. If discovery is blocked, add its IP address and port instead.");
+        lookupProgress.open();
+        deviceLookup.start(deviceId);
+    }
+
+    DeviceIdLookup {
+        id: deviceLookup
+        model: computerModel
+        onDiscoveryRequested: ComputerManager.refreshDiscovery()
+        onFailed: function(ambiguous) {
+            lookupProgress.close();
+            errorDialog.text = ambiguous ? qsTr("More than one device has this ID. Select the device from the list or use its IP address.") : qsTr("Device not found. Start sharing on the other computer and check that both devices are on the same local network. If discovery is blocked, add its IP address and port instead.");
             errorDialog.helpText = "";
             errorDialog.open();
-            return;
         }
-        pcList.currentIndex = index;
-        pcList.positionViewAtIndex(index, ListView.Contain);
-        showDetail = true;
-        Qt.callLater(activateDevice);
+        onFound: function(uuid) {
+            lookupProgress.close();
+            var index = computerModel.findDevice(uuid);
+            if (index < 0)
+                return;
+            pcList.currentIndex = index;
+            pcList.positionViewAtIndex(index, ListView.Contain);
+            showDetail = true;
+            Qt.callLater(function () {
+                // Never activate another device if the model changed meanwhile.
+                if (selectedDevice && selectedDevice.pcUuid === uuid)
+                    activateDevice();
+            });
+        }
+    }
+
+    NavigableMessageDialog {
+        id: lookupProgress
+        objectName: "deviceIdLookupProgress"
+        text: qsTr("Looking for this device on the local network…")
+        showSpinner: true
+        standardButtons: Dialog.Cancel
+        closePolicy: Popup.CloseOnEscape
+        onRejected: deviceLookup.cancel()
     }
 
     function pairingComplete(error, uuid) {

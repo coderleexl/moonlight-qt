@@ -223,6 +223,8 @@ public:
 
     Q_INVOKABLE void startPolling();
 
+    Q_INVOKABLE void refreshDiscovery();
+
     Q_INVOKABLE void stopPollingAsync();
 
     Q_INVOKABLE void addNewHostManually(QString address);
@@ -268,6 +270,8 @@ private:
     QHostAddress getBestGlobalAddressV6(QVector<QHostAddress>& addresses);
 
     void startPollingComputer(NvComputer* computer);
+
+    void startMdnsBrowser(); // Caller holds m_Lock for write.
 
     StreamingPreferences* m_Prefs;
     int m_PollingRef;

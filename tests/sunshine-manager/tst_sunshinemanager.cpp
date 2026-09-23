@@ -123,6 +123,7 @@ private slots:
         manager.setLocalOnly(false);
         QVERIFY(manager.localOnly());
         QVERIFY(!manager.resetAccess());
+        QVERIFY(!manager.setAccessPassword("654321"));
         QFile record(m_ConfigDir + "/test-arguments.json");
         QVERIFY(record.open(QIODevice::ReadOnly));
         const auto args = QJsonDocument::fromJson(record.readAll()).array();
@@ -149,6 +150,7 @@ private slots:
         SunshineManager first;
         QVERIFY(DeskAccess::validId(first.deviceId()));
         QVERIFY(DeskAccess::validPassword(first.accessPassword()));
+        QVERIFY(QRegularExpression("^[0-9]{6}$").match(first.accessPassword()).hasMatch());
         const auto id = first.deviceId();
         const auto password = first.accessPassword();
         SunshineManager second;
@@ -165,6 +167,7 @@ private slots:
         QVERIFY(second.resetAccess());
         QCOMPARE(second.deviceId(), id);
         QVERIFY(second.accessPassword() != password);
+        QVERIFY(QRegularExpression("^[0-9]{6}$").match(second.accessPassword()).hasMatch());
         QVERIFY(state.open(QIODevice::ReadOnly));
         const auto object = QJsonDocument::fromJson(state.readAll()).object();
         QCOMPARE(object.value("username").toString(), QString("admin"));
@@ -175,6 +178,39 @@ private slots:
         QVERIFY(!root.contains("devices"));
         SunshineManager third;
         QCOMPARE(third.accessPassword(), second.accessPassword());
+    }
+    void customPasswordPersistsAndRevokes()
+    {
+        SunshineManager manager;
+        const auto id = manager.deviceId();
+        const auto original = manager.accessPassword();
+        for (const auto& invalid : {QString(), QString("12345"), QString("123456\n"),
+                                    QString("abc def"), QString(65, 'a'), QString::fromUtf8("密码123456")}) {
+            QVERIFY(!manager.setAccessPassword(invalid));
+            QCOMPARE(manager.accessPassword(), original);
+        }
+        QFile state(m_ConfigDir + "/sunshine_state.json");
+        QVERIFY(state.open(QIODevice::WriteOnly));
+        state.write(R"({"root":{"uniqueid":"keep","named_devices":[{"cert":"old"}]}})");
+        state.close();
+        QVERIFY(manager.setAccessPassword("Desk-Office!42"));
+        QCOMPARE(manager.deviceId(), id);
+        SunshineManager loaded;
+        QCOMPARE(loaded.accessPassword(), QString("Desk-Office!42"));
+        QVERIFY(state.open(QIODevice::ReadOnly));
+        const auto root = QJsonDocument::fromJson(state.readAll()).object().value("root").toObject();
+        QCOMPARE(root.value("uniqueid").toString(), QString("keep"));
+        QVERIFY(root.value("named_devices").toArray().isEmpty());
+        QVERIFY(loaded.setAccessPassword("012345"));
+        QCOMPARE(loaded.accessPassword(), QString("012345"));
+        QVERIFY(loaded.setAccessPassword(QString(64, '!')));
+    }
+    void legacyPasswordStillLoads()
+    {
+        SunshineManager manager;
+        QVERIFY(manager.setAccessPassword("AbCdEfGhIjKlMnOpQrSt_-"));
+        SunshineManager loaded;
+        QCOMPARE(loaded.accessPassword(), QString("AbCdEfGhIjKlMnOpQrSt_-"));
     }
     void corruptAccessFailsClosed()
     {

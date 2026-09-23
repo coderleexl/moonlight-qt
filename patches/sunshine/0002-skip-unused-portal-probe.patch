@@ -1,0 +1,15 @@
+diff --git a/src/platform/linux/misc.cpp b/src/platform/linux/misc.cpp
+--- a/src/platform/linux/misc.cpp
++++ b/src/platform/linux/misc.cpp
+@@ -1404,7 +1404,10 @@ namespace platf {
+     }
+ #endif
+ #ifdef SUNSHINE_BUILD_PORTAL
+-    if ((config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
++    // A usable native backend already has priority in display(). Avoid opening
++    // an unused portal session: unsupported desktop portals can fail to reply
++    // during startup (observed on Deepin X11). Explicit portal selection remains.
++    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "portal") && verify_portal()) {
+       sources[source::PORTAL] = true;
+     }
+ #endif

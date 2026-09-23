@@ -587,7 +587,7 @@ ApplicationWindow {
         id: addPcDialog
         objectName: "addComputerDialog"
         title: qsTr("Connect to a device")
-        property string label: qsTr("Enter a device ID or IP address (Desk uses port 48989):")
+        property string label: qsTr("Enter the other computer's 9-digit device ID or IP address. Device IDs are looked up on the local network; the access password is entered next.")
 
         standardButtons: Dialog.Ok | Dialog.Cancel
 

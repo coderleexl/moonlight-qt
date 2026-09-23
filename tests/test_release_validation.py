@@ -70,7 +70,7 @@ class ReleaseValidationTest(unittest.TestCase):
         (self.root / 'Desk-x64.zip').write_bytes(b'corrupt')
         self.reject(RuntimeError)
 
-    def published_release(self, missing_public_assets=False):
+    def published_release(self, missing_public_assets=False, draft=False):
         metadata = dict(id=42, draft=False, assets=[], html_url='https://github.com/test/desk/releases/tag/desk-v6.1.1')
 
         def assets():
@@ -84,14 +84,21 @@ class ReleaseValidationTest(unittest.TestCase):
         def read(cmd, **kwargs):
             if cmd == ['git', 'rev-parse', 'HEAD']:
                 return SHA + '\n'
+            if cmd[:3] == ['gh', 'release', 'view']:
+                self.assertEqual(cmd[-1], 'databaseId')
+                return json.dumps(dict(databaseId=42))
+            if cmd[:3] in (['gh', 'release', 'upload'], ['gh', 'release', 'edit']):
+                self.assertTrue(draft)
+                return ''
             self.assertEqual(cmd[:2], ['gh', 'api'])
+            self.assertIn('/releases/42/assets?', cmd[2])
             return json.dumps(assets() if '/assets?' in cmd[2] else metadata)
 
         def run(cmd, **kwargs):
             if cmd[:3] == ['git', 'rev-parse', '--verify']:
                 return subprocess.CompletedProcess(cmd, 0, stdout=SHA + '\n')
             self.assertEqual(cmd[:3], ['gh', 'release', 'view'])
-            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(dict(isDraft=False)))
+            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(dict(isDraft=draft)))
 
         def public(url, **kwargs):
             data = ([] if missing_public_assets else assets()) if '/assets?' in url else metadata
@@ -107,6 +114,10 @@ class ReleaseValidationTest(unittest.TestCase):
 
     def test_empty_embedded_assets_uses_asset_collection(self):
         self.published_release()
+        self.assertIn('Published:', (self.root / 'summary.md').read_text())
+
+    def test_draft_resolves_by_database_id_before_publishing(self):
+        self.published_release(draft=True)
         self.assertIn('Published:', (self.root / 'summary.md').read_text())
 
     def test_missing_public_asset_collection_still_fails(self):

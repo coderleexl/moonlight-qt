@@ -62,9 +62,12 @@ while running():
 PY
 
 ditto "$source_app" /Applications/Desk.app
+# ditto preserves the old shadow-build bundle timestamp. Invalidate the icon
+# cache before registering or launching the replacement application.
+touch /Applications/Desk.app
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$source_app" || true
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Desk.app
-mdimport /Applications/Desk.app
+mdimport -i /Applications/Desk.app
 cmp "$source_app/Contents/MacOS/Desk" /Applications/Desk.app/Contents/MacOS/Desk
 open /Applications/Desk.app
 echo 'Updated /Applications/Desk.app and refreshed Spotlight.'

@@ -201,6 +201,9 @@ private slots:
         const auto root = QJsonDocument::fromJson(state.readAll()).object().value("root").toObject();
         QCOMPARE(root.value("uniqueid").toString(), QString("keep"));
         QVERIFY(root.value("named_devices").toArray().isEmpty());
+        // Windows cannot atomically replace a file held open by this reader.
+        // Release the test's handle before asking the manager to write it again.
+        state.close();
         QVERIFY(loaded.setAccessPassword("012345"));
         QCOMPARE(loaded.accessPassword(), QString("012345"));
         QVERIFY(loaded.setAccessPassword(QString(64, '!')));

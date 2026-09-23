@@ -135,6 +135,26 @@ jobs:
         if: runner.os == 'Windows'
         with:
           arch: x64
+      - name: Test host process management (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/host-manager-test | Out-Null
+          Push-Location build/host-manager-test
+          try {
+            qmake ../../tests/sunshine-manager/sunshine-manager.pro CONFIG+=host_preview CONFIG+=release CONFIG-=debug_and_release DESTDIR=.
+            if ($LASTEXITCODE -ne 0) { throw 'Test configure failed' }
+            nmake
+            if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
+            New-Item -ItemType Directory -Force host/sunshine | Out-Null
+            foreach ($dll in @("Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll", "Qt6Test.dll")) {
+              Copy-Item (Join-Path $env:QT_ROOT_DIR "bin/$dll") host/sunshine/
+            }
+            ./sunshine-manager-test.exe -o results.txt,txt
+            $testExitCode = $LASTEXITCODE
+            if (Test-Path results.txt) { Get-Content results.txt }
+            if ($testExitCode -ne 0) { throw "Process management tests failed (exit $testExitCode)" }
+          } finally { Pop-Location }
       - name: Build Windows packages
         if: runner.os == 'Windows'
         shell: pwsh
@@ -148,22 +168,6 @@ jobs:
       - name: Build Linux DEB
         if: runner.os == 'Linux'
         run: bash scripts/build-desk-deb.sh
-      - name: Test host process management (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force build/host-manager-test | Out-Null
-          Push-Location build/host-manager-test
-          try {
-            qmake ../../tests/sunshine-manager/sunshine-manager.pro CONFIG+=host_preview CONFIG+=release CONFIG-=debug_and_release DESTDIR=.
-            if ($LASTEXITCODE -ne 0) { throw 'Test configure failed' }
-            nmake
-            if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
-            New-Item -ItemType Directory -Force host/sunshine | Out-Null
-            Copy-Item ../preview-payload/*.dll host/sunshine/
-            ./sunshine-manager-test.exe
-            if ($LASTEXITCODE -ne 0) { throw 'Process management tests failed' }
-          } finally { Pop-Location }
       - name: Test host process management (macOS and Linux)
         if: runner.os != 'Windows'
         shell: bash
@@ -205,6 +209,7 @@ jobs:
         with:
           name: Logs-${{ matrix.package }}
           path: |
+            build/host-manager-test/results.txt
             build/preview-smoke/*.txt
             build/preview-smoke/*.log
             build/desk-smoke/*.txt

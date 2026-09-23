@@ -1,4 +1,5 @@
 #include "session.h"
+#include "streamtoolbar.h"
 #include "settings/streamingpreferences.h"
 #include "streaming/streamutils.h"
 #include "backend/richpresencemanager.h"
@@ -925,6 +926,14 @@ bool Session::initialize(QQuickWindow* qtWindow)
 #endif
         break;
     }
+
+#ifdef Q_OS_WIN32
+    // A desktop fullscreen window can compose the session controls above video.
+    // Exclusive fullscreen may hide/minimize when another native window is shown.
+    if (WMUtils::isRunningDesktopEnvironment()) {
+        m_FullScreenFlag = SDL_WINDOW_FULLSCREEN_DESKTOP;
+    }
+#endif
 
 #if !SDL_VERSION_ATLEAST(2, 0, 11)
     // HACK: Using a full-screen window breaks mouse capture on the Pi's LXDE
@@ -1953,6 +1962,8 @@ void Session::exec()
 
     // Start rich presence to indicate we're in game
     RichPresenceManager presence(*m_Preferences, m_App.name);
+    StreamToolbar toolbar(m_Window, m_QtWindow && m_QtWindow->property("darkTheme").toBool());
+    Uint32 lastToolbarUpdate = SDL_GetTicks() - 100;
 
     // Toggle the stats overlay if requested by the user
     m_OverlayManager.setOverlayState(Overlay::OverlayDebug, m_Preferences->showPerformanceOverlay);
@@ -1964,6 +1975,10 @@ void Session::exec()
     // because we want to suspend all Qt processing until the stream is over.
     SDL_Event event;
     for (;;) {
+        if (toolbar.available() && SDL_GetTicks() - lastToolbarUpdate >= 100) {
+            toolbar.sync(m_InputHandler->absoluteMouseMode(), SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN);
+            lastToolbarUpdate = SDL_GetTicks();
+        }
 #if SDL_VERSION_ATLEAST(2, 0, 18) && !defined(STEAM_LINK)
         // SDL 2.0.18 has a proper wait event implementation that uses platform
         // support to block on events rather than polling on Windows, macOS, X11,
@@ -1974,7 +1989,7 @@ void Session::exec()
         // NB: This behavior was introduced in SDL 2.0.16, but had a few critical
         // issues that could cause indefinite timeouts, delayed joystick detection,
         // and other problems.
-        if (!SDL_WaitEventTimeout(&event, 1000)) {
+        if (!SDL_WaitEventTimeout(&event, toolbar.available() ? 100 : 1000)) {
             presence.runCallbacks();
             continue;
         }
@@ -1995,6 +2010,32 @@ void Session::exec()
             continue;
         }
 #endif
+        const auto toolbarAction = toolbar.handleEvent(event);
+        if (toolbarAction != StreamToolbar::Action::None) {
+            switch (toolbarAction) {
+            case StreamToolbar::Action::ReleaseInput:
+                m_InputHandler->releaseAllInputs();
+                m_InputHandler->setCaptureActive(false);
+                break;
+            case StreamToolbar::Action::ResumeInput:
+                m_InputHandler->setCaptureActive(true);
+                break;
+            case StreamToolbar::Action::ToggleMouseMode:
+                m_InputHandler->setAbsoluteMouseMode(!m_InputHandler->absoluteMouseMode());
+                break;
+            case StreamToolbar::Action::ToggleFullscreen:
+                m_InputHandler->releaseAllInputs();
+                m_InputHandler->setCaptureActive(false);
+                toggleFullscreen();
+                break;
+            case StreamToolbar::Action::Disconnect:
+                goto DispatchDeferredCleanup;
+            default:
+                break;
+            }
+            toolbar.sync(m_InputHandler->absoluteMouseMode(), SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN);
+            continue;
+        }
         switch (event.type) {
         case SDL_QUIT:
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
@@ -2042,8 +2083,13 @@ void Session::exec()
             break;
 
         case SDL_WINDOWEVENT:
+            if (event.window.windowID != SDL_GetWindowID(m_Window)) {
+                break;
+            }
             // Early handling of some events
             switch (event.window.event) {
+            case SDL_WINDOWEVENT_CLOSE:
+                goto DispatchDeferredCleanup;
             case SDL_WINDOWEVENT_FOCUS_LOST:
                 if (m_Preferences->muteOnFocusLoss) {
                     m_AudioMuted = true;
@@ -2313,7 +2359,10 @@ DispatchDeferredCleanup:
 
     // Uncapture the mouse and hide the window immediately,
     // so we can return to the Qt GUI ASAP.
+    m_InputHandler->releaseAllInputs();
     m_InputHandler->setCaptureActive(false);
+    toolbar.close();
+    SDL_HideWindow(m_Window);
     SDL_EnableScreenSaver();
     SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "0");
     if (QGuiApplication::platformName() == "eglfs") {

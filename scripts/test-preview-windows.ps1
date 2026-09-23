@@ -70,7 +70,8 @@ log_path = $ConfigDir\sunshine.log
         if ($Owned -and -not $Owned.HasExited) { Stop-Process -Id $Owned.Id -Force; $Owned.WaitForExit() }
     }
 }
-& python (Join-Path $PSScriptRoot 'test-desk-access.py') (Join-Path $InstallDir 'host/sunshine/sunshine.exe')
+$TestPython = if ($env:DESK_TEST_PYTHON) { $env:DESK_TEST_PYTHON } else { 'python' }
+& $TestPython (Join-Path $PSScriptRoot 'test-desk-access.py') (Join-Path $InstallDir 'host/sunshine/sunshine.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Desk password protocol tests failed' }
 $OriginalAfter = if (Test-Path $OriginalKey) { (Get-ItemProperty $OriginalKey | ConvertTo-Json -Depth 8) } else { '<absent>' }
 if ($OriginalAfter -ne $OriginalBefore) { throw 'Original Moonlight settings changed' }

@@ -134,6 +134,10 @@ public:
 
     void raiseAllKeys();
 
+    void releaseAllInputs();
+    bool absoluteMouseMode() const { return m_AbsoluteMouseMode; }
+    void setAbsoluteMouseMode(bool absolute);
+
     void notifyMouseLeave();
 
     void notifyFocusLost();
@@ -240,6 +244,7 @@ private:
     int m_StreamWidth;
     int m_StreamHeight;
     bool m_AbsoluteMouseMode;
+    Uint32 m_MouseButtonsDown = 0;
     bool m_AbsoluteTouchMode;
     bool m_DisabledTouchFeedback;
 

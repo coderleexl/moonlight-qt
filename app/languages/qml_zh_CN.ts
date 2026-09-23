@@ -1865,4 +1865,39 @@
         <translation>无法读取或保存本机的访问凭据。</translation>
     </message>
 </context>
+    <context>
+        <name>StreamToolbar</name>
+        <message>
+            <source>Session controls</source>
+            <translation>串流控制</translation>
+        </message>
+        <message>
+            <source>Mouse: Desktop</source>
+            <translation>鼠标：桌面</translation>
+        </message>
+        <message>
+            <source>Mouse: Game</source>
+            <translation>鼠标：游戏</translation>
+        </message>
+        <message>
+            <source>Windowed</source>
+            <translation>窗口化</translation>
+        </message>
+        <message>
+            <source>Fullscreen</source>
+            <translation>全屏</translation>
+        </message>
+        <message>
+            <source>Release mouse</source>
+            <translation>释放鼠标</translation>
+        </message>
+        <message>
+            <source>Disconnect</source>
+            <translation>断开连接</translation>
+        </message>
+        <message>
+            <source>Ctrl+Alt+Shift+T: toolbar · Q: disconnect · Z: release mouse</source>
+            <translation>Ctrl+Alt+Shift+T：工具栏 · Q：断开 · Z：释放鼠标</translation>
+        </message>
+    </context>
 </TS>

@@ -62,6 +62,13 @@ void SdlInputHandler::handleMouseButtonEvent(SDL_MouseButtonEvent* event)
             button = BUTTON_RIGHT;
     }
 
+    if (event->state == SDL_PRESSED) {
+        m_MouseButtonsDown |= 1u << button;
+    }
+    else {
+        m_MouseButtonsDown &= ~(1u << button);
+    }
+
     LiSendMouseButtonEvent(event->state == SDL_PRESSED ?
                                BUTTON_ACTION_PRESS :
                                BUTTON_ACTION_RELEASE,
@@ -82,7 +89,15 @@ void SdlInputHandler::handleMouseMotionEvent(SDL_MouseMotionEvent* event)
     // Batch all pending mouse motion events to save CPU time
     Sint32 x = event->x, y = event->y, xrel = event->xrel, yrel = event->yrel;
     SDL_Event nextEvent;
-    while (SDL_PeepEvents(&nextEvent, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION) > 0) {
+    while (SDL_PeepEvents(&nextEvent, 1, SDL_PEEKEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION) > 0) {
+        // Leave toolbar events in the queue for the session dispatcher. Never
+        // coalesce coordinates from another window into remote mouse movement.
+        if (nextEvent.motion.windowID != SDL_GetWindowID(m_Window)) {
+            break;
+        }
+        if (SDL_PeepEvents(&nextEvent, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION) <= 0) {
+            break;
+        }
         event = &nextEvent.motion;
 
         // Ignore synthetic mouse events

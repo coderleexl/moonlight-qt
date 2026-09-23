@@ -10,7 +10,7 @@ app="$mountpoint/Desk.app"
 codesign --verify --deep --strict "$app"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = io.github.coderleexl.Desk
 # Bundles must not rely on the build machine's Homebrew/Qt installation.
-python3 - "$app" <<'PY'
+"${DESK_TEST_PYTHON:-python3}" - "$app" <<'PY'
 from pathlib import Path
 import subprocess
 import sys
@@ -30,6 +30,6 @@ assert not external, 'External dependencies:\n' + '\n'.join(external)
 PY
 env -u QT_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
   -u DYLD_LIBRARY_PATH -u DYLD_FRAMEWORK_PATH \
-  python3 scripts/test-desk-unix.py "$app/Contents/MacOS/Desk" \
+  "${DESK_TEST_PYTHON:-python3}" scripts/test-desk-unix.py "$app/Contents/MacOS/Desk" \
   "$app/Contents/Helpers/Sunshine.app/Contents/MacOS/Sunshine" \
   "$app/Contents/Helpers/Sunshine.app/Contents/Resources/assets/apps.json"

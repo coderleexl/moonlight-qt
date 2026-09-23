@@ -309,6 +309,29 @@ void SdlInputHandler::notifyMouseLeave()
     }
 }
 
+void SdlInputHandler::releaseAllInputs()
+{
+    raiseAllKeys();
+    for (int button = BUTTON_LEFT; button <= BUTTON_X2; button++) {
+        if (m_MouseButtonsDown & (1u << button)) {
+            LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, button);
+        }
+    }
+    m_MouseButtonsDown = 0;
+    SDL_CaptureMouse(SDL_FALSE);
+}
+
+void SdlInputHandler::setAbsoluteMouseMode(bool absolute)
+{
+    const bool captured = isCaptureActive();
+    releaseAllInputs();
+    setCaptureActive(false);
+    m_AbsoluteMouseMode = absolute;
+    if (captured) {
+        setCaptureActive(true);
+    }
+}
+
 void SdlInputHandler::notifyFocusLost()
 {
     // Release mouse cursor when another window is activated (e.g. by using ALT+TAB).

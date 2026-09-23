@@ -38,10 +38,14 @@ jobs:
         shell: bash
         run: bash scripts/fetch-desk-source.sh '${{ matrix.platform }}'
       - uses: actions/setup-python@v5
+        id: test-python
         with:
           python-version: '3.12'
       - name: Install protocol test dependency
-        run: python -m pip install cryptography==46.0.5
+        shell: bash
+        run: |
+          "${{ steps.test-python.outputs.python-path }}" -m pip install cryptography==46.0.5
+          echo "DESK_TEST_PYTHON=${{ steps.test-python.outputs.python-path }}" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

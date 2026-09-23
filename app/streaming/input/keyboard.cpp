@@ -34,9 +34,9 @@ void SdlInputHandler::performSpecialKeyCombo(KeyCombo combo)
         // Stop handling future input
         setCaptureActive(!isCaptureActive());
 
-        // Force raise all keys to ensure they aren't stuck,
-        // since we won't get their key up events.
-        raiseAllKeys();
+        // Release remote keys/buttons too, since their up events may be lost
+        // when the pointer moves to local controls.
+        releaseAllInputs();
         break;
 
     case KeyComboToggleFullScreen:
@@ -62,14 +62,7 @@ void SdlInputHandler::performSpecialKeyCombo(KeyCombo combo)
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
                     "Detected mouse mode toggle combo");
 
-        // Uncapture input
-        setCaptureActive(false);
-
-        // Toggle mouse mode
-        m_AbsoluteMouseMode = !m_AbsoluteMouseMode;
-
-        // Recapture input
-        setCaptureActive(true);
+        setAbsoluteMouseMode(!m_AbsoluteMouseMode);
         break;
 
     case KeyComboToggleCursorHide:

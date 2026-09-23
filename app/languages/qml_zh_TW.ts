@@ -1865,4 +1865,39 @@
         <translation>無法讀取或儲存本機的存取憑證。</translation>
     </message>
 </context>
+    <context>
+        <name>StreamToolbar</name>
+        <message>
+            <source>Session controls</source>
+            <translation>串流控制</translation>
+        </message>
+        <message>
+            <source>Mouse: Desktop</source>
+            <translation>滑鼠：桌面</translation>
+        </message>
+        <message>
+            <source>Mouse: Game</source>
+            <translation>滑鼠：遊戲</translation>
+        </message>
+        <message>
+            <source>Windowed</source>
+            <translation>視窗模式</translation>
+        </message>
+        <message>
+            <source>Fullscreen</source>
+            <translation>全螢幕</translation>
+        </message>
+        <message>
+            <source>Release mouse</source>
+            <translation>釋放滑鼠</translation>
+        </message>
+        <message>
+            <source>Disconnect</source>
+            <translation>中斷連線</translation>
+        </message>
+        <message>
+            <source>Ctrl+Alt+Shift+T: toolbar · Q: disconnect · Z: release mouse</source>
+            <translation>Ctrl+Alt+Shift+T：工具列 · Q：中斷 · Z：釋放滑鼠</translation>
+        </message>
+    </context>
 </TS>

@@ -52,8 +52,8 @@ class ManagerTest : public QObject
 private slots:
     void initTestCase()
     {
-#if !defined(Q_OS_MACOS) && !defined(Q_OS_WIN)
-        QSKIP("Bundled host integration currently targets Windows and macOS");
+#if !defined(Q_OS_MACOS) && !defined(Q_OS_WIN) && !defined(Q_OS_LINUX)
+        QSKIP("Bundled hosting is not supported on this platform");
 #endif
         QVERIFY(m_Data.isValid());
         QStandardPaths::setTestModeEnabled(true);
@@ -63,6 +63,8 @@ private slots:
         m_ConfigDir = manager.configDirectory();
 #ifdef Q_OS_WIN
         m_Helper = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("host/sunshine/sunshine.exe");
+#elif defined(Q_OS_LINUX)
+        m_Helper = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../lib/desk/host/sunshine/sunshine");
 #else
         m_Helper = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../Helpers/Sunshine.app/Contents/MacOS/Sunshine");
 #endif

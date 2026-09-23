@@ -1,13 +1,10 @@
 ---
-name: Build
+name: Upstream client builds (manual)
 permissions:
   contents: read
 
 on:
-  push:
-  pull_request:
-    branches:
-      - master
+  workflow_dispatch:
 
 concurrency:
   group: build-${{ github.ref }}

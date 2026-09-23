@@ -1,0 +1,199 @@
+name: Desk Build and Release
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish all tested packages to GitHub Releases
+        type: boolean
+        default: true
+  push:
+    tags: ['desk-v*']
+permissions:
+  contents: read
+concurrency:
+  group: desk-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-2025
+            arch: x64
+          - platform: macos
+            os: macos-26
+            arch: arm64
+          - platform: linux
+            os: ubuntu-24.04
+            arch: amd64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch client and pinned Sunshine source
+        shell: bash
+        run: bash scripts/fetch-desk-source.sh '${{ matrix.platform }}'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Qt (Windows and macOS)
+        if: runner.os != 'Linux'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.2'
+          arch: ${{ runner.os == 'Windows' && 'win64_msvc2022_64' || 'clang_64' }}
+          cache: true
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@073e34d7c2ab4ae6961ed7cca690b3abd5ba5a7e'
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config dpkg-dev \
+            qt6-base-dev qt6-declarative-dev libqt6svg6-dev qt6-wayland \
+            qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtquick-controls \
+            qml6-module-qtquick-templates qml6-module-qtquick-layouts qml6-module-qtqml-workerscript qml6-module-qtqml-models \
+            libsdl2-dev libsdl2-ttf-dev libssl-dev libopus-dev libavcodec-dev libavformat-dev libswscale-dev \
+            libva-dev libvdpau-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev libdrm-dev \
+            libcap-dev libcurl4-openssl-dev libevdev-dev libgbm-dev libminiupnpc-dev libnuma-dev \
+            libpipewire-0.3-dev libpulse-dev libsystemd-dev libudev-dev libwayland-dev wayland-protocols \
+            libx11-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb1-dev libxfixes-dev libxrandr-dev \
+            libxtst-dev libvulkan-dev libglvnd-dev libicu-dev libnotify-dev libglib2.0-dev glslang-tools \
+            xvfb xauth desktop-file-utils python3-jinja2
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja pkg-config openssl@3 opus miniupnpc
+          python3 setup-deps.py
+      - name: Install Windows client dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./setup-deps.ps1
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+          }
+      - name: Install Windows host toolchain
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-cppwinrt mingw-w64-ucrt-x86_64-curl-winssl
+            mingw-w64-ucrt-x86_64-miniupnpc mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-onevpl mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-opus mingw-w64-ucrt-x86_64-MinHook
+      - name: Build Windows Sunshine
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: bash scripts/build-sunshine-windows.sh
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - name: Build Windows packages
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/build-preview-windows.ps1 -SunshinePayload ./build/sunshine-payload
+          New-Item -ItemType Directory -Force build/dist | Out-Null
+          Copy-Item build/preview-installer/* build/dist/
+      - name: Build macOS package
+        if: runner.os == 'macOS'
+        run: bash scripts/build-desk-macos.sh
+      - name: Build Linux DEB
+        if: runner.os == 'Linux'
+        run: bash scripts/build-desk-deb.sh
+      - name: Test host process management (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/host-manager-test | Out-Null
+          Push-Location build/host-manager-test
+          try {
+            qmake ../../tests/sunshine-manager/sunshine-manager.pro CONFIG+=host_preview CONFIG+=release CONFIG-=debug_and_release DESTDIR=.
+            if ($LASTEXITCODE -ne 0) { throw 'Test configure failed' }
+            nmake
+            if ($LASTEXITCODE -ne 0) { throw 'Test build failed' }
+            New-Item -ItemType Directory -Force host/sunshine | Out-Null
+            Copy-Item ../preview-payload/*.dll host/sunshine/
+            ./sunshine-manager-test.exe
+            if ($LASTEXITCODE -ne 0) { throw 'Process management tests failed' }
+          } finally { Pop-Location }
+      - name: Test host process management (macOS and Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p build/host-manager-test/bin
+          cd build/host-manager-test/bin
+          qmake_cmd=qmake
+          if [[ "$RUNNER_OS" == Linux ]]; then qmake_cmd=qmake6; fi
+          "$qmake_cmd" ../../../tests/sunshine-manager/sunshine-manager.pro CONFIG+=host_preview CONFIG+=release CONFIG-=debug_and_release
+          make -j3
+          QT_QPA_PLATFORM=offscreen ./sunshine-manager-test
+      - name: Test Windows installation and bundled host
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test-preview-windows.ps1
+      - name: Test macOS disk image and bundled host
+        if: runner.os == 'macOS'
+        run: bash scripts/test-desk-macos.sh
+      - name: Test DEB installation and bundled host
+        if: runner.os == 'Linux'
+        run: bash scripts/test-desk-deb.sh
+      - name: Record build identity and checksums
+        shell: bash
+        env:
+          DESK_PLATFORM: ${{ matrix.platform }}
+        run: python3 scripts/desk-artifact-manifest.py
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Desk-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/dist/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Logs-${{ matrix.platform }}
+          path: |
+            build/preview-smoke/*.txt
+            build/preview-smoke/*.log
+            build/desk-smoke/*.txt
+            build/desk-smoke/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    name: Publish and verify Release
+    needs: build
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: Desk-*
+          path: build/release
+          merge-multiple: true
+      - name: Test release validation gates
+        run: python3 -m unittest discover -s tests -p test_release_validation.py
+      - name: Validate packages and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-desk-release.py

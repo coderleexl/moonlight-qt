@@ -22,7 +22,7 @@ if (Test-Path $Payload) { Remove-Item -Recurse -Force $Payload }
 New-Item -ItemType Directory -Force $Payload | Out-Null
 Push-Location $BuildRoot
 try {
-    Invoke-Checked 'qmake' @((Join-Path $RepoRoot 'moonlight-qt.pro'), 'CONFIG+=host_preview')
+    Invoke-Checked 'qmake' @('-r', (Join-Path $RepoRoot 'moonlight-qt.pro'), 'CONFIG+=host_preview')
     Invoke-Checked 'nmake' @('release')
 } finally { Pop-Location }
 $Exe = Join-Path $BuildRoot 'app\release\Desk.exe'

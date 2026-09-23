@@ -4,7 +4,7 @@
 
 由 [@coderleexl](https://github.com/coderleexl) 维护的 Moonlight Qt 界面重构版本，面向远程办公并兼顾游戏串流，基于 [上游 Moonlight Qt](https://github.com/moonlight-stream/moonlight-qt)。
 
-[下载 Windows 版](https://github.com/coderleexl/moonlight-qt/releases/tag/desk-v6.1.0) · [本仓库源码](https://github.com/coderleexl/moonlight-qt) · [问题反馈](https://github.com/coderleexl/moonlight-qt/issues)
+[下载 Desk](https://github.com/coderleexl/moonlight-qt/releases) · [本仓库源码](https://github.com/coderleexl/moonlight-qt) · [问题反馈](https://github.com/coderleexl/moonlight-qt/issues)
 
 ### 运行界面预览
 
@@ -24,85 +24,66 @@
 
 主题切换目前仅在当前运行期间生效。本机能力为检测结果，实际串流效果还取决于主机、编码配置与网络；界面缩放独立于串流分辨率。
 
-### macOS 开发运行
+### 下载 Desk
 
-本地已使用 Mac ARM64、Qt 6.11.0 完成 Release 编译。安装 Qt 并准备好子模块及依赖后，在仓库根目录运行：
+在 [GitHub Releases](https://github.com/coderleexl/moonlight-qt/releases) 下载已发布的安装包。三端由同一次 **Desk Build and Release** 工作流并行构建，均包含从固定源码编译的 Sunshine：
+
+| 平台 | 安装包 | 适配范围 |
+| --- | --- | --- |
+| Windows | `Desk-Setup-x64.exe` 或 `Desk-x64.zip`，二选一 | Windows x64 |
+| macOS | `Desk-macOS-arm64.dmg`，拖入 Applications | Apple Silicon；macOS 26 构建 |
+| Linux | `desk_版本_amd64.deb` | Ubuntu 24.04 amd64 |
+
+DEB 使用 `sudo apt install ./desk_版本_amd64.deb` 安装，以便同时安装依赖。其他 Debian/Ubuntu 版本需要单独验证。各版本实际可下载的平台以 Release 的 Assets 为准。
+
+Windows 安装包未签名，macOS 使用临时签名且未进行 Apple 公证，系统可能要求确认打开。原版 Moonlight 的安装与设置不受影响；此前 Moonlight Desk Preview 的配置不会自动迁移到 Desk。
+
+### 一次构建并自动发布
+
+打开 [Desk Build and Release](https://github.com/coderleexl/moonlight-qt/actions/workflows/build-desk.yml)，点击 **Run workflow**。`publish` 默认开启：
+
+1. Windows、macOS、Linux 三个 job 并行编译并打包。
+2. 各平台执行主机进程管理、客户端及内置 Sunshine Web 启动检查；Windows 和 DEB 另做安装／卸载检查。
+3. 发布 job 校验四个安装包均来自当前提交，并验证 SHA-256。
+4. 创建 `desk-v版本` 标签，将 EXE、ZIP、DMG、DEB 和 `SHA256SUMS.txt` 上传到同一个 Release。
+5. 上传完整后公开发布，再以未登录请求确认 Release 可访问。任何一步失败都会令工作流失败，不会把残缺包发布为正式版本。
+
+发布版本取自 `app/version.txt`。发布新版本前先递增版本号；已发布标签不会被移动，已公开安装包不会被覆盖。同一提交的重试会校验已发布内容。也可以推送与版本号一致的 `desk-v*` 标签，自动触发同一流程。关闭 `publish` 则只在 Actions Artifacts 中保留测试包。
+
+旧上游多平台构建保留为手动维护入口，不再与 Desk 重复自动运行。自动发布完全运行在 GitHub Actions 内，无需本机脚本、个人访问令牌或保持电脑在线。
+
+### 内置 Sunshine 与局域网连接
+
+Sunshine 固定版本为 `v2026.914.233613`（`63d35f7`），位于 `third_party/sunshine` 子模块。它作为 Desk 管理的子进程运行，退出 Desk 会停止它；不自动安装 Sunshine 系统服务或开机启动项。
+
+1. 在“本机”页启动服务。默认“仅本机测试”只允许自己连接；另一台电脑连接时，先停止服务、关闭该选项，再启动。
+2. 另一台设备添加 `主机局域网 IP:48989`。必要时允许内置 Sunshine 通过主机防火墙的对应网络。
+3. 主机点击“配置与配对”，打开 `https://127.0.0.1:48990`，首次使用设置管理账号并登录。
+4. 在客户端发起一次配对，保持 PIN 弹窗打开，在主机管理网页的 PIN 页面输入四位数字并提交。主机不会自动弹出 PIN 输入框。
+
+`48989` 是连接端口，`48990` 是管理网页端口。当前关闭客户端 PIN 弹窗不会取消主机等待中的配对；若重复配对返回 409，可在主机端停止并重启内置服务后再试。局域网设备 ID 连接尚未实现。
+
+macOS 需授予屏幕录制与辅助功能权限。Linux 包含 X11、Wayland/Portal 捕获；桌面门户可能要求确认共享，远程输入通过 uinput/uhid，并为活动桌面用户安装设备访问规则；权限尚未生效时注销并重新登录。Linux 不授予 `cap_sys_admin`，未启用直接 KMS 捕获与 NVFBC。
+
+CI 验证安装与启动链路，不代替真实 GPU 串流、锁屏、UAC、手柄和显示权限测试。
+
+### 本地开发与打包
+
+Mac Apple Silicon 客户端开发（Qt 6.11，先准备上游 v17 macOS 依赖及客户端子模块）：
 
 ```sh
-qmake moonlight-qt.pro
+qmake -r moonlight-qt.pro CONFIG+=host_preview QMAKE_APPLE_DEVICE_ARCHS=arm64
 make release -j8
-open app/Moonlight.app
+open app/Desk.app
 ```
 
-首次准备依赖请参见下方 [Build Setup Steps](#build-setup-steps)。请使用本仓库源码构建此界面版本；下方上游安装包不包含本次界面改动。开发产物位于 `app/Moonlight.app`，分发打包仍使用原有构建脚本。
+完整安装包使用对应平台的脚本，所需依赖见工作流：
 
-### Windows：Desk
+- Windows：`scripts/build-preview-windows.ps1 -SunshinePayload ./build/sunshine-payload`。
+- macOS：`bash scripts/build-desk-macos.sh`。
+- Linux：`bash scripts/build-desk-deb.sh`。
 
-在 [GitHub Releases](https://github.com/coderleexl/moonlight-qt/releases/tag/desk-v6.1.0) 下载 Windows x64 版本，选择一种即可，两者均包含从源码编译的 Sunshine：
-
-- **安装版（推荐）**：[Desk-Setup-x64.exe](https://github.com/coderleexl/moonlight-qt/releases/download/desk-v6.1.0/Desk-Setup-x64.exe)，下载后直接安装。
-- **免安装版**：[Desk-x64.zip](https://github.com/coderleexl/moonlight-qt/releases/download/desk-v6.1.0/Desk-x64.zip)，解压后运行 `Desk.exe`。
-
-安装包由 [Windows Desk 构建流程](https://github.com/coderleexl/moonlight-qt/actions/workflows/build-windows-preview.yml) 生成。Actions 中单独的 `sunshine-preview-x64` 是构建中间产物，无需另行下载。
-
-Desk 使用独立标识，可与原版共存：
-
-| 项目 | Desk |
-| --- | --- |
-| 应用 / 可执行文件 | Desk / `Desk.exe` |
-| 安装目录 | `%LOCALAPPDATA%\Programs\Desk` |
-| 设置与配对身份 | `HKCU\Software\coderleexl\Desk` |
-| 主机端口 / Web 配置端口 | `48989` / `48990` |
-| 安装与卸载 | 独立 AppId，仅当前用户，无需覆盖原版 |
-
-安装后在“本机”页面启动服务，按“配置与配对 → 添加本机 → 配对 → 连接桌面”测试。默认只监听本机。其他设备连接 Windows 时，先停止服务并关闭“仅本机测试”，重新启动后添加 `Windows 局域网 IP:48989`；必要时允许内置 Sunshine 通过 Windows 防火墙的专用网络。退出应用会停止内置服务。本版不自动安装 Sunshine 系统服务、驱动或开机启动项。
-
-**Windows 不会自动弹出配对输入框。** 在 Windows Desk 点击“配置与配对”，打开 `https://127.0.0.1:48990`，首次使用先设置并登录 Sunshine 管理账号。在另一台设备发起配对，保持 PIN 弹窗打开，将四位数字输入 Windows 管理网页的 PIN 页面并提交。`48989` 是客户端连接端口，`48990` 是管理网页端口。
-
-当前关闭客户端 PIN 弹窗不会取消主机上等待中的配对。重复点击可能返回 `409: A pairing session with this uniqueid already exists`；此时在 Windows Desk 停止并重新启动服务，保持“仅本机测试”关闭，再发起一次配对。原版 Sunshine 与 Desk 的配对记录独立，Desk 需要重新配对。
-
-构建流程包含 Windows 进程管理测试、安装／卸载检查、客户端启动和 Sunshine Web 配置页启动检查；GPU 编解码、真实串流、锁屏／UAC 和手柄驱动需在目标电脑上实测。安装包尚未签名，可能出现 SmartScreen 提示。
-
-本地 Windows 开发时，先按工作流中的 MSYS2 步骤编译 Sunshine 并执行 `cmake --install` 得到服务目录，再在安装 Qt 6.11 MSVC、Inno Setup 6 的 x64 MSVC 开发命令行中运行：
-
-```powershell
-./setup-deps.ps1
-./scripts/build-preview-windows.ps1 -SunshinePayload ./build/sunshine-payload
-```
-
-该脚本使用 `CONFIG+=host_preview` 构建独立身份，输出位于 `build/preview-installer/`。普通构建仍使用原有应用身份。ZIP 解压版同样使用 Desk 的用户配置，不与原版共享设置。
-
-### 内置 Sunshine（macOS 实验功能）
-
-正在接入源码构建的 Sunshine，固定版本为 `v2026.914.233613`（`63d35f7`），源码位于 `third_party/sunshine` 子模块。整合产物将服务放在 `Moonlight.app/Contents/Helpers/Sunshine.app` 内，无需单独安装 Sunshine App；运行时仍有独立的后台进程，由 Moonlight 管理。
-
-开发依赖：原有 Moonlight 构建环境，以及 Homebrew 的 `cmake ninja pkg-config boost openssl@3 opus miniupnpc node`。构建脚本会初始化 Sunshine 所需子模块，下载其构建依赖，并编译服务与 Web 配置页面：
-
-```sh
-./scripts/build-integrated-macos.sh
-open app/Moonlight.app
-```
-
-脚本生成本机开发签名的应用，尚未作为可分发安装包验证。普通 `qmake` 构建仅编译管理界面，不会自动下载或编译 Sunshine；缺少内置服务时，“本机”页会提示且禁用启动。
-
-本机闭环测试步骤：
-
-1. 打开侧栏“本机”，保留“仅本机测试（127.0.0.1）”，启动服务。
-2. 在“配置与配对”中设置 Sunshine 登录账号；按 macOS 提示授予屏幕录制权限，远程键鼠输入还需要辅助功能权限，修改后重启服务。
-3. 点击“添加本机”，在设备页发起配对，将 PIN 输入 Sunshine 配置页面。
-4. 点击“连接桌面”。同屏串流会出现画面套娃；该测试可检查连接链路，不能代表真实网络延迟和远端输入体验。
-
-默认不自动启动，不开启 UPnP；配置、凭据和日志位于 Moonlight 应用数据目录下的 `sunshine/`，不会接管单独安装的 Sunshine。允许局域网连接时，先停止服务，再关闭“仅本机测试”。退出 Moonlight 会停止它启动的服务，目前不支持无人值守常驻。**当前管理代码已编译并通过进程管理测试；当前源码及依赖下载因网络中断未完成，完整整合包和真实串流仍待验证。**
-
-进程管理测试使用受控测试进程，覆盖服务缺失、端口占用、启停、配置保留、异常退出和退出清理，不代替真实 Sunshine 串流测试：
-
-```sh
-mkdir -p build/sunshine-manager-test/Contents/MacOS
-cd build/sunshine-manager-test/Contents/MacOS
-qmake ../../../../tests/sunshine-manager/sunshine-manager.pro
-make -j8
-./sunshine-manager-test
-```
+先运行 `bash scripts/fetch-desk-source.sh windows|macos|linux` 中对应的一项以获取固定源码。Windows Sunshine 单独通过 MSYS2 执行 `scripts/build-sunshine-windows.sh`；macOS/Linux 打包脚本会同时编译 Sunshine。普通客户端编译不会自动包含主机服务，缺失时界面会禁用启动。
 
 ## 上游项目说明
 

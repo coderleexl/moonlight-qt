@@ -36,7 +36,7 @@ FocusScope {
                 }
                 Label {
                     objectName: "hostStatus"
-                    text: !SunshineManager.supported ? qsTr("Hosting is currently available on Windows and macOS only") : !SunshineManager.installed ? qsTr("Built-in host is not included in this build") : hostPage.running ? qsTr("Host running") : SunshineManager.state === SunshineManager.Starting ? qsTr("Starting host…") : SunshineManager.state === SunshineManager.Stopping ? qsTr("Stopping host…") : SunshineManager.state === SunshineManager.Failed ? qsTr("Host could not start") : qsTr("Host stopped")
+                    text: !SunshineManager.supported ? qsTr("Hosting is not supported on this platform") : !SunshineManager.installed ? qsTr("Built-in host is not included in this build") : hostPage.running ? qsTr("Host running") : SunshineManager.state === SunshineManager.Starting ? qsTr("Starting host…") : SunshineManager.state === SunshineManager.Stopping ? qsTr("Stopping host…") : SunshineManager.state === SunshineManager.Failed ? qsTr("Host could not start") : qsTr("Host stopped")
                     font.pixelSize: 20
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
@@ -124,8 +124,15 @@ FocusScope {
                 }
             }
             Label {
-                visible: !SunshineManager.needsMacPermissions
+                visible: Qt.platform.os === "windows"
                 text: qsTr("For LAN connections on Windows, allow the bundled Sunshine through Windows Firewall on private networks. Hosting runs while you are signed in; it does not install a system service.")
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                color: window.secondaryColor
+            }
+            Label {
+                visible: Qt.platform.os === "linux"
+                text: qsTr("On Linux, screen sharing may require approval in your desktop portal. Remote input requires uinput access; sign out and back in after installing Desk if input is unavailable.")
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 color: window.secondaryColor

@@ -1,0 +1,3 @@
+# Allow the active local desktop user to create remote input devices.
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"
+KERNEL=="uhid", SUBSYSTEM=="misc", TAG+="uaccess"

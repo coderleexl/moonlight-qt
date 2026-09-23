@@ -1619,8 +1619,8 @@
     </message>
     <message>
         <location filename="../gui/HostView.qml" line="37"/>
-        <source>Hosting is currently available on Windows and macOS only</source>
-        <translation>目前仅支持在 Windows 和 macOS 上提供主机服务</translation>
+        <source>Hosting is not supported on this platform</source>
+        <translation>此平台不支持主机服务</translation>
     </message>
     <message>
         <location filename="../gui/HostView.qml" line="37"/>
@@ -1734,6 +1734,10 @@
     <message>
         <source>For LAN connections on Windows, allow the bundled Sunshine through Windows Firewall on private networks. Hosting runs while you are signed in; it does not install a system service.</source>
         <translation>在 Windows 上使用局域网连接时，请允许内置 Sunshine 通过 Windows 防火墙的专用网络。主机服务在登录后运行，不会安装系统服务。</translation>
+    </message>
+    <message>
+        <source>On Linux, screen sharing may require approval in your desktop portal. Remote input requires uinput access; sign out and back in after installing Desk if input is unavailable.</source>
+        <translation>在 Linux 上，共享屏幕可能需要在桌面门户中授权。远程输入需要 uinput 权限；安装 Desk 后若无法输入，请注销并重新登录。</translation>
     </message>
 </context>
 <context>

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Desk
+Comment=Remote desktop streaming with a built-in Sunshine host
+Exec=desk
+Icon=io.github.coderleexl.Desk
+Terminal=false
+Categories=Network;RemoteAccess;
+StartupWMClass=Desk

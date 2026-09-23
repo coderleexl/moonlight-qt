@@ -90,7 +90,7 @@ SunshineManager::~SunshineManager()
 
 bool SunshineManager::supported() const
 {
-#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+#if defined(Q_OS_MACOS) || defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     return true;
 #else
     return false;
@@ -124,6 +124,8 @@ QString SunshineManager::executablePath() const
 {
 #ifdef Q_OS_WIN
     return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("host/sunshine/sunshine.exe");
+#elif defined(Q_OS_LINUX)
+    return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../lib/desk/host/sunshine/sunshine");
 #else
     return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(
         "../Helpers/Sunshine.app/Contents/MacOS/Sunshine");

@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    modprobe uinput 2>/dev/null || true
+    modprobe uhid 2>/dev/null || true
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules 2>/dev/null || true
+        udevadm trigger --subsystem-match=misc 2>/dev/null || true
+    fi
+fi

@@ -934,9 +934,15 @@ int main(int argc, char *argv[])
 #endif
 
     // This is necessary to show our icon correctly on Wayland
+#ifdef MOONLIGHT_HOST_PREVIEW
+    app.setDesktopFileName("desk");
+    qputenv("SDL_VIDEO_WAYLAND_WMCLASS", "desk");
+    qputenv("SDL_VIDEO_X11_WMCLASS", "Desk");
+#else
     app.setDesktopFileName("com.moonlight_stream.Moonlight");
     qputenv("SDL_VIDEO_WAYLAND_WMCLASS", "com.moonlight_stream.Moonlight");
     qputenv("SDL_VIDEO_X11_WMCLASS", "com.moonlight_stream.Moonlight");
+#endif
 
     // Register our C++ types for QML
     qmlRegisterType<ComputerModel>("ComputerModel", 1, 0, "ComputerModel");

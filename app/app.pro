@@ -13,7 +13,8 @@ include(../globaldefs.pri)
 # Independent identity for the integrated host preview, opt-in at build time.
 host_preview {
     DEFINES += MOONLIGHT_HOST_PREVIEW
-    win32: TARGET = Desk
+    TARGET = Desk
+    unix:!macx: TARGET = desk
 }
 
 # Precompile QML files to avoid writing qmlcache on portable versions.
@@ -567,16 +568,18 @@ win32 {
     QMAKE_LFLAGS += /MANIFEST:embed /MANIFESTINPUT:$${PWD}/Moonlight.exe.manifest
 }
 macx {
-    # Create Info.plist in object dir with the correct version string
-    system(cp $$PWD/Info.plist $$OUT_PWD/Info.plist)
-    system(sed -i -e 's/VERSION/$$cat(version.txt)/g' $$OUT_PWD/Info.plist)
-
-    QMAKE_INFO_PLIST = $$OUT_PWD/Info.plist
+    # Generate separately so in-source qmake never overwrites the source template.
+    QMAKE_INFO_PLIST = $$OUT_PWD/generated/Info.plist
+    BUNDLE_ID = com.moonlight-stream.Moonlight
+    host_preview: BUNDLE_ID = io.github.coderleexl.Desk
+    !system(python3 $$shell_quote($$PWD/../scripts/configure-macos-plist.py) $$shell_quote($$PWD/Info.plist) $$shell_quote($$QMAKE_INFO_PLIST) $$cat(version.txt) $$TARGET $$BUNDLE_ID) {
+        error(Failed to generate macOS Info.plist)
+    }
 
     APP_BUNDLE_RESOURCES.files = moonlight.icns
     APP_BUNDLE_RESOURCES.path = Contents/Resources
 
-    APP_BUNDLE_PLIST.files = $$OUT_PWD/Info.plist
+    APP_BUNDLE_PLIST.files = $$QMAKE_INFO_PLIST
     APP_BUNDLE_PLIST.path = Contents
 
     QMAKE_BUNDLE_DATA += APP_BUNDLE_RESOURCES APP_BUNDLE_PLIST

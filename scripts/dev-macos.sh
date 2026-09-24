@@ -35,6 +35,38 @@ source_app="$PWD/build/desk-macos-local.noindex/app/Desk.app"
 test -x "$source_app/Contents/MacOS/Desk"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$source_app/Contents/Info.plist")" = io.github.coderleexl.Desk
 
+# A newly linked executable points to the development Qt installation. Always
+# deploy it before combining it with the installed app's Cocoa plugins.
+macdeployqt "$source_app" -qmldir="$PWD/app/gui" -no-codesign
+python3 - "$source_app" <<'PYDEPLOY'
+from pathlib import Path
+import subprocess
+import sys
+app = Path(sys.argv[1]).resolve()
+frameworks = app / 'Contents/Frameworks'
+for plugin in (app / 'Contents/PlugIns/sqldrivers').glob('*.dylib'):
+    if plugin.name != 'libqsqlite.dylib':
+        plugin.unlink()
+external = []
+for path in app.rglob('*'):
+    if not path.is_file() or path.is_symlink():
+        continue
+    with path.open('rb') as stream:
+        if stream.read(4) not in (b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'):
+            continue
+    ident = subprocess.check_output(['otool', '-D', str(path)], text=True).splitlines()
+    if len(ident) > 1 and ident[1].startswith('/') and frameworks in path.parents:
+        subprocess.run(['install_name_tool', '-id', '@rpath/' + path.relative_to(frameworks).as_posix(), str(path)], check=True)
+    for line in subprocess.check_output(['otool', '-L', str(path)], text=True).splitlines():
+        if not line.startswith('\t'):
+            continue
+        dep = line.strip().split(' (')[0]
+        if dep.startswith('/') and not dep.startswith(('/usr/lib/', '/System/Library/')):
+            external.append(f'{path.name}: {dep}')
+if external:
+    raise SystemExit('Installation stopped: external dependencies\n' + '\n'.join(external))
+PYDEPLOY
+
 # Desk handles one SIGTERM by ending its session and quitting normally. Do not
 # use a second signal (which forces exit), or kill other Moonlight installations.
 python3 - <<'PY'
@@ -63,6 +95,9 @@ while running():
 PY
 
 ditto "$source_app" /Applications/Desk.app
+xattr -cr /Applications/Desk.app
+codesign --force --deep --sign - /Applications/Desk.app
+codesign --verify --deep --strict /Applications/Desk.app
 # ditto preserves the old shadow-build bundle timestamp. Invalidate the icon
 # cache before registering or launching the replacement application.
 touch /Applications/Desk.app
@@ -71,4 +106,13 @@ touch /Applications/Desk.app
 mdimport -i /Applications/Desk.app
 cmp "$source_app/Contents/MacOS/Desk" /Applications/Desk.app/Contents/MacOS/Desk
 open /Applications/Desk.app
+# LaunchServices accepting the launch does not mean the app survived startup.
+python3 - <<'PYSTART'
+import subprocess
+import time
+time.sleep(5)
+processes = subprocess.check_output(['ps', '-axo', 'comm='], text=True).splitlines()
+if '/Applications/Desk.app/Contents/MacOS/Desk' not in processes:
+    raise SystemExit('Desk exited during startup; inspect its latest /tmp/Desk-*.log before reporting success.')
+PYSTART
 echo 'Updated /Applications/Desk.app and refreshed Spotlight.'

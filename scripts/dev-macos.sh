@@ -24,7 +24,8 @@ case "${1:-}" in
         build/desk-macos-local.noindex/app/release/autoupdatechecker.o \
         build/desk-macos-local.noindex/app/release/systemproperties.o
     fi
-    make -C build/desk-macos-local.noindex release -j8
+    # Leave CPU and memory available for the editor during local development.
+    make -C build/desk-macos-local.noindex release -j"${JOBS:-2}"
     cp app/version.txt build/desk-macos-local.noindex/.compiled-version
     ;;
   --install-only) ;;

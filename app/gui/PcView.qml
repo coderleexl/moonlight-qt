@@ -595,7 +595,7 @@ FocusScope {
             Label {
                 objectName: "capabilityFootnote"
                 visible: pcPage.selectedDevice !== null
-                text: qsTr("Local detection · Host and network support required")
+                text: "© 2026 coderleex"
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24
@@ -603,8 +603,9 @@ FocusScope {
                 Layout.bottomMargin: 16
                 color: window.secondaryColor
                 font.pixelSize: 11
+                font.weight: Font.Normal
                 horizontalAlignment: Text.AlignRight
-                wrapMode: Text.Wrap
+                elide: Text.ElideRight
             }
         }
     }

@@ -4,6 +4,14 @@ import QtQuick.Controls 2.2
 Menu {
     property var initiator
 
+    function openBelow(item) {
+        initiator = item
+        parent = item
+        x = item.width - width
+        y = item.height
+        open()
+    }
+
     onClosed: {
         if (initiator && initiator.visible && initiator.enabled) initiator.forceActiveFocus(Qt.OtherFocusReason)
     }

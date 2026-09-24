@@ -1,7 +1,7 @@
 --- a/src/nvhttp.cpp
 +++ b/src/nvhttp.cpp
 @@ -26,6 +26,7 @@
-
+ 
  // local includes
  #include "config.h"
 +#include "desk_files.h"
@@ -11,7 +11,7 @@
 @@ -1784,6 +1785,34 @@
      };
      https_server.resource["^/cancel$"]["GET"] = cancel;
-
+ 
 +    // Available only in Desk-managed hosts, on the existing paired-certificate HTTPS server.
 +    std::shared_ptr<desk_files::Service> files;
 +    if (const char *encoded_root = std::getenv("DESK_FILE_ROOT")) {

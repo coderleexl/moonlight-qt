@@ -316,7 +316,7 @@ ApplicationWindow {
                     iconSource: "qrc:/res/nav-help.svg"
                     display: window.compactNavigation ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
                     Layout.fillWidth: true
-                    onClicked: Qt.openUrlExternally("https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide")
+                    onClicked: Qt.openUrlExternally("https://github.com/coderleexl/moonlight-qt")
                     Keys.onRightPressed: window.focusPage()
                     Shortcut {
                         sequences: [StandardKey.HelpContents]
@@ -407,12 +407,6 @@ ApplicationWindow {
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
-                    }
-                    NavigableToolButton {
-                        text: qsTr("Join our community on Discord")
-                        visible: SystemProperties.hasBrowser && stackView.currentItem instanceof SettingsView
-                        iconSource: "qrc:/res/discord.svg"
-                        onClicked: Qt.openUrlExternally("https://moonlight-stream.org/discord")
                     }
                     NavigableToolButton {
                         id: addPcButton

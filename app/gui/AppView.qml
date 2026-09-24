@@ -268,12 +268,10 @@ CenteredGridView {
                 onClicked: appDelegate.doQuitGame()
             }
             ToolButton {
+                id: appMoreButton
                 text: "⋯"
                 Accessible.name: qsTr("App actions")
-                onClicked: {
-                    appContextMenu.initiator = this;
-                    appContextMenu.open();
-                }
+                onClicked: appContextMenu.openBelow(appMoreButton)
             }
         }
 
@@ -306,12 +304,14 @@ CenteredGridView {
         }
 
         onPressAndHold: {
+            appContextMenu.initiator = appDelegate;
+            appContextMenu.parent = appDelegate;
             // popup() ensures the menu appears under the mouse cursor
             if (appContextMenu.popup) {
                 appContextMenu.popup();
             } else {
                 // Qt 5.9 doesn't have popup()
-                appContextMenu.open();
+                appContextMenu.openBelow(appMoreButton);
             }
         }
 
@@ -327,8 +327,7 @@ CenteredGridView {
         Keys.onEnterPressed: launchOrResumeSelectedApp(true)
 
         Keys.onMenuPressed: {
-            // This will be keyboard/gamepad driven so use open() instead of popup()
-            appContextMenu.open();
+            appContextMenu.openBelow(appMoreButton);
         }
 
         function doQuitGame() {
@@ -342,6 +341,7 @@ CenteredGridView {
             asynchronous: false
             sourceComponent: NavigableMenu {
                 id: appContextMenu
+                parent: appDelegate
                 initiator: appContextMenuLoader.parent
                 NavigableMenuItem {
                     text: model.running ? qsTr("Resume Game") : qsTr("Launch Game")

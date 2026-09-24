@@ -195,6 +195,21 @@ jobs:
             if (Test-Path results.txt) { Get-Content results.txt }
             if ($testExitCode -ne 0) { throw "Process management tests failed (exit $testExitCode)" }
           } finally { Pop-Location }
+      - name: Test file transfer, TLS authorization and QML window (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Git Bash prepends /usr/bin, whose link.exe is not the MSVC linker.
+          # Run the MSVC tests natively, with the compiler directory first on PATH.
+          $compilerDir = Split-Path (Get-Command cl.exe -ErrorAction Stop).Source -Parent
+          $linker = Join-Path $compilerDir 'link.exe'
+          if (-not (Test-Path $linker)) { throw "MSVC linker missing: $linker" }
+          $env:PATH = "$compilerDir;" + $env:PATH
+          Write-Host "Using MSVC linker: $linker"
+          & $env:DESK_TEST_PYTHON scripts/prepare-desk-translations.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:DESK_TEST_PYTHON scripts/test-file-transfer.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows packages
         if: runner.os == 'Windows'
         shell: pwsh
@@ -208,7 +223,8 @@ jobs:
       - name: Build Linux DEB
         if: runner.os == 'Linux'
         run: bash scripts/build-desk-deb.sh
-      - name: Test file transfer, TLS authorization and QML window
+      - name: Test file transfer, TLS authorization and QML window (macOS and Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           "${DESK_TEST_PYTHON:-python3}" scripts/test-file-transfer.py
@@ -257,6 +273,8 @@ jobs:
           name: Logs-${{ matrix.package }}
           path: |
             build/host-manager-test/results.txt
+            build/file-transfer-test.noindex/results*.txt
+            build/native-files-test.noindex/results*.txt
             build/sunshine-ccache-stats.txt
             build/preview-smoke/*.txt
             build/preview-smoke/*.log

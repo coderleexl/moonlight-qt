@@ -74,7 +74,7 @@ Windows 安装包未签名，macOS 使用临时签名且未进行 Apple 公证�
 
 发布版本取自 `app/version.txt`。发布新版本前先递增版本号；已发布标签不会被移动，已公开安装包不会被覆盖。同一提交的重试会校验已发布内容。也可以推送与版本号一致的 `desk-v*` 标签，自动触发同一流程。关闭 `publish` 则只在 Actions Artifacts 中保留测试包。
 
-旧上游多平台构建保留为手动维护入口，不再与 Desk 重复自动运行。自动发布完全运行在 GitHub Actions 内，无需本机脚本、个人访问令牌或保持电脑在线。
+工作流统一使用 `.github/workflows/build-desk.yml`，涵盖上述四个平台的构建、测试与发布。旧上游的客户端、AppImage 和 Steam Link 工作流已移除。自动发布完全运行在 GitHub Actions 内，无需本机脚本、个人访问令牌或保持电脑在线。
 
 ### 内置 Sunshine 与局域网连接
 

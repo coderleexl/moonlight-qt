@@ -1,5 +1,10 @@
 <RCC>
     <qresource prefix="/">
+        <file>gui/FileTransferWindow.qml</file>
+        <file>gui/FileTransferPane.qml</file>
+        <file>res/file-transfer.svg</file>
+        <file>res/transfer-file.svg</file>
+        <file>res/transfer-folder.svg</file>
         <file>res/ic_videogame_asset_white_48px.svg</file>
         <file>res/desktop_windows-48px.svg</file>
         <file>res/ic_add_to_queue_white_48px.svg</file>

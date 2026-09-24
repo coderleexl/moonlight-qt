@@ -1,0 +1,291 @@
+--- a/src/nvhttp.cpp
++++ b/src/nvhttp.cpp
+@@ -26,6 +26,7 @@
+
+ // local includes
+ #include "config.h"
++#include "desk_files.h"
+ #include "display_device.h"
+ #include "file_handler.h"
+ #include "globals.h"
+@@ -1784,6 +1785,34 @@
+     };
+     https_server.resource["^/cancel$"]["GET"] = cancel;
+
++    // Available only in Desk-managed hosts, on the existing paired-certificate HTTPS server.
++    std::shared_ptr<desk_files::Service> files;
++    if (const char *encoded_root = std::getenv("DESK_FILE_ROOT")) {
++      try {
++        files = std::make_shared<desk_files::Service>(fs::u8path(desk_files::decode(encoded_root)));
++      } catch (const std::exception &e) {
++        BOOST_LOG(error) << "Desk file sharing unavailable: " << e.what();
++      }
++    }
++    https_server.resource["^/desk/files$"]["POST"] = [files](auto response, auto request) {
++      // Closing each request forces a new certificate check, including revocation.
++      response->close_connection_after_response = true;
++      nlohmann::json result;
++      if (!files || net::from_address(net::addr_to_normalized_string(request->remote_endpoint().address())) == net::WAN) {
++        result = {{"ok", false}, {"error", "File sharing is disabled or this connection is outside the LAN"}};
++      } else if (request->content.size() > 512 * 1024) {
++        result = {{"ok", false}, {"error", "Request too large"}};
++      } else {
++        try {
++          result = files->execute(nlohmann::json::parse(request->content.string()));
++        } catch (const std::exception &) {
++          result = {{"ok", false}, {"error", "Invalid request"}};
++        }
++      }
++      response->write(SimpleWeb::StatusCode::success_ok, result.dump(), {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
++    };
++    https_server.config.max_request_streambuf_size = 1024 * 1024;
++
+     https_server.config.reuse_address = true;
+     https_server.config.address = net::get_bind_address(address_family);
+     https_server.config.port = port_https;
+--- /dev/null
++++ b/src/desk_files.h
+@@ -0,0 +1,243 @@
++/**
++ * @file src/desk_files.h
++ * @brief Bounded, certificate-authorized Desk file operations within a shared directory.
++ */
++#ifndef DESK_FILES_H
++#define DESK_FILES_H
++#include <algorithm>
++#include <cctype>
++#include <cstdint>
++#include <chrono>
++#include <filesystem>
++#include <fstream>
++#include <map>
++#include <memory>
++#include <mutex>
++#include <stdexcept>
++#include <string>
++#include <nlohmann/json.hpp>
++#include <openssl/evp.h>
++#include <openssl/rand.h>
++#ifdef _WIN32
++#include <windows.h>
++#endif
++
++namespace desk_files {
++  namespace fs = std::filesystem;
++  using json = nlohmann::json;
++  constexpr size_t chunk_size = 256 * 1024; ///< Maximum decoded bytes per operation.
++
++  /** @brief Convert binary bytes to base64 for the bounded JSON transport. */
++  inline std::string encode(const std::string &bytes) {
++    std::string out(4 * ((bytes.size() + 2) / 3), '\0');
++    if (!bytes.empty()) EVP_EncodeBlock(reinterpret_cast<unsigned char *>(out.data()), reinterpret_cast<const unsigned char *>(bytes.data()), int(bytes.size()));
++    return out;
++  }
++  /** @brief Decode canonical base64, rejecting malformed or oversized input. */
++  inline std::string decode(const std::string &value) {
++    if (value.empty()) return {};
++    if (value.size() % 4 || value.size() > 4 * ((chunk_size + 2) / 3)) throw std::runtime_error("Invalid data");
++    std::string out(value.size() / 4 * 3, '\0');
++    int len = EVP_DecodeBlock(reinterpret_cast<unsigned char *>(out.data()), reinterpret_cast<const unsigned char *>(value.data()), int(value.size()));
++    if (len < 0) throw std::runtime_error("Invalid data");
++    if (value.back() == '=') --len;
++    if (value[value.size() - 2] == '=') --len;
++    if (len < 0) throw std::runtime_error("Invalid data");
++    out.resize(size_t(len));
++    if (encode(out) != value) throw std::runtime_error("Invalid data");
++    return out;
++  }
++  /** @brief Produce a cryptographically random, unguessable upload capability. */
++  inline std::string token() {
++    unsigned char bytes[32];
++    if (RAND_bytes(bytes, sizeof(bytes)) != 1) throw std::runtime_error("Random generator failed");
++    std::string out;
++    for (auto b : bytes) { out += "0123456789abcdef"[b >> 4]; out += "0123456789abcdef"[b & 15]; }
++    return out;
++  }
++  /** @brief Preserve UTF-8 paths with both C++17 and C++20 char8_t filesystem APIs. */
++  inline std::string path_utf8(const fs::path &path) {
++    auto bytes = path.u8string();
++    return std::string(reinterpret_cast<const char *>(bytes.data()), bytes.size());
++  }
++  /** @brief Return a file version used to reject concurrent edits during transfer. */
++  inline std::string version(const fs::path &p) {
++    if (!fs::exists(p)) return "missing";
++    return std::to_string(fs::file_size(p)) + ":" + std::to_string(static_cast<int64_t>(fs::last_write_time(p).time_since_epoch().count()));
++  }
++
++  /** @brief Serializes file operations and atomically publishes verified uploads. */
++  class Service {
++    /** @brief A temporary upload; destruction removes incomplete content. */
++    struct Upload {
++      fs::path temp; ///< Private staging file.
++      std::string path, expected; ///< Destination and its initial version.
++      uint64_t size = 0, offset = 0; ///< Expected and received byte counts.
++      std::ofstream stream; ///< Bounded streaming writer.
++      std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> hash {EVP_MD_CTX_new(), EVP_MD_CTX_free}; ///< Incremental SHA-256.
++      std::chrono::steady_clock::time_point touched = std::chrono::steady_clock::now(); ///< Idle expiry.
++      /** @brief Close and discard an unfinished staging file. */
++      ~Upload() { stream.close(); std::error_code ec; fs::remove(temp, ec); }
++    };
++    fs::path root; ///< Canonical host-approved shared directory.
++    std::mutex mutex; ///< Guards uploads and filesystem operations.
++    std::map<std::string, std::unique_ptr<Upload>> uploads; ///< Active random capabilities.
++
++    /** @brief Resolve a relative path without following symlinks or Windows reparse points. */
++    fs::path resolve(const std::string &name) const {
++      if (name.size() > 4096 || name.find('\0') != std::string::npos || name.find('\\') != std::string::npos || name.find(':') != std::string::npos) throw std::runtime_error("Invalid path");
++      auto relative = fs::u8path(name);
++      if (relative.is_absolute() || relative.has_root_name()) throw std::runtime_error("Invalid path");
++      auto p = root;
++      for (const auto &part : relative) {
++        const auto s = path_utf8(part);
++        if (s == ".." || s == "." || s == ".desk-transfers" || s.empty() || s.back() == '.' || s.back() == ' ') throw std::runtime_error("Invalid path");
++#ifdef _WIN32
++        auto stem = part.stem().string();
++        std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c) { return char(std::toupper(c)); });
++        if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || (stem.size() == 4 && (stem.substr(0, 3) == "COM" || stem.substr(0, 3) == "LPT") && stem[3] >= '1' && stem[3] <= '9')) throw std::runtime_error("Invalid path");
++#endif
++        p /= part;
++        if (fs::is_symlink(fs::symlink_status(p))) throw std::runtime_error("Symbolic links are not shared");
++#ifdef _WIN32
++        auto attrs = GetFileAttributesW(p.c_str());
++        if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT)) throw std::runtime_error("Reparse points are not shared");
++#endif
++      }
++      return p;
++    }
++
++  public:
++    /** @brief Open an explicitly configured shared root; never defaults to a system directory. */
++    explicit Service(const fs::path &shared) {
++      if (shared.empty()) throw std::runtime_error("File sharing is disabled");
++      fs::create_directories(shared);
++      root = fs::canonical(shared);
++      auto staging = root / ".desk-transfers";
++      if (fs::is_symlink(fs::symlink_status(staging))) throw std::runtime_error("Invalid staging directory");
++#ifdef _WIN32
++      auto attrs = GetFileAttributesW(staging.c_str());
++      if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT)) throw std::runtime_error("Invalid staging directory");
++#endif
++      fs::create_directory(staging);
++#ifndef _WIN32
++      fs::permissions(staging, fs::perms::owner_all, fs::perm_options::replace);
++#endif
++      // Clean only this service's old partial files, never user documents.
++      for (const auto &e : fs::directory_iterator(staging)) {
++        const auto n = e.path().filename().string();
++        if (n.size() == 69 && n.substr(64) == ".part" && n.substr(0, 64).find_first_not_of("0123456789abcdef") == std::string::npos) {
++          std::error_code ec;
++          fs::remove(e.path(), ec);
++        }
++      }
++    }
++
++    /** @brief Perform a bounded operation after the caller verifies a paired TLS certificate. */
++    json execute(const json &request) {
++      std::lock_guard<std::mutex> guard(mutex);
++      for (auto it = uploads.begin(); it != uploads.end();) {
++        if (std::chrono::steady_clock::now() - it->second->touched > std::chrono::minutes(5)) it = uploads.erase(it); else ++it;
++      }
++      try {
++        const auto op = request.at("op").get<std::string>();
++        if (op == "list" || op == "stat" || op == "mkdir" || op == "read" || op == "begin") {
++          const auto name = request.value("path", std::string());
++          auto path = resolve(name);
++          if (op == "list") {
++            json entries = json::array();
++            for (const auto &entry : fs::directory_iterator(path)) {
++              const auto child = path_utf8(entry.path().filename());
++              if (child == ".desk-transfers" || entry.is_symlink()) continue;
++              try {
++                auto safe = resolve(name.empty() ? child : name + "/" + child);
++                if (!fs::is_regular_file(safe) && !fs::is_directory(safe)) continue;
++                if (entries.size() >= 10000) throw std::length_error("Directory has more than 10000 entries");
++                bool dir = fs::is_directory(safe);
++                entries.push_back({{"name", child}, {"dir", dir}, {"size", dir ? 0 : fs::file_size(safe)}, {"version", dir ? "directory" : version(safe)}});
++              } catch (const std::runtime_error &) { continue; }
++            }
++            return {{"ok", true}, {"protocol", 1}, {"root", path_utf8(root)}, {"entries", entries}};
++          }
++          if (op == "stat") {
++            const bool exists = fs::exists(path);
++            const bool dir = exists && fs::is_directory(path);
++            if (exists && !dir && !fs::is_regular_file(path)) throw std::runtime_error("Not a regular file");
++            return {{"ok", true}, {"exists", exists}, {"dir", dir}, {"size", exists && !dir ? fs::file_size(path) : 0}, {"version", dir ? "directory" : version(path)}};
++          }
++          if (name.empty()) throw std::runtime_error("A file name is required");
++          if (op == "mkdir") {
++            if (!fs::exists(path)) fs::create_directory(path);
++            if (!fs::is_directory(path)) throw std::runtime_error("A file already uses this name");
++            return {{"ok", true}};
++          }
++          if (op == "read") {
++            if (!fs::is_regular_file(path)) throw std::runtime_error("Not a regular file");
++            const auto stamp = version(path);
++            if (request.at("version").get<std::string>() != stamp) throw std::runtime_error("Source changed; retry the transfer");
++            uint64_t offset = request.at("offset").get<uint64_t>();
++            if (offset > fs::file_size(path)) throw std::runtime_error("Invalid offset");
++            std::ifstream input(path, std::ios::binary);
++            input.seekg(std::streamoff(offset));
++            std::string bytes(chunk_size, '\0');
++            input.read(bytes.data(), bytes.size());
++            if (input.bad() || (!input.eof() && input.fail())) throw std::runtime_error("Cannot read file");
++            bytes.resize(size_t(input.gcount()));
++            if (version(path) != stamp) throw std::runtime_error("Source changed; retry the transfer");
++            return {{"ok", true}, {"data", encode(bytes)}};
++          }
++          if (uploads.size() >= 16) throw std::runtime_error("Too many active uploads");
++          if (fs::exists(path) && !fs::is_regular_file(path)) throw std::runtime_error("Not a regular file");
++          auto expected = request.at("expected").get<std::string>();
++          if (version(path) != expected) return {{"ok", false}, {"code", "conflict"}, {"error", "Destination changed"}};
++          auto upload = std::make_unique<Upload>();
++          upload->path = name;
++          upload->expected = expected;
++          upload->size = request.at("size").get<uint64_t>();
++          if (upload->size > uint64_t(INT64_MAX)) throw std::runtime_error("File is too large");
++          auto key = token();
++          upload->temp = root / ".desk-transfers" / (key + ".part");
++          upload->stream.open(upload->temp, std::ios::binary | std::ios::trunc);
++          if (!upload->stream || !upload->hash || EVP_DigestInit_ex(upload->hash.get(), EVP_sha256(), nullptr) != 1) throw std::runtime_error("Cannot create temporary file");
++          uploads.emplace(key, std::move(upload));
++          return {{"ok", true}, {"token", key}};
++        }
++        auto key = request.at("token").get<std::string>();
++        auto it = uploads.find(key);
++        if (it == uploads.end()) throw std::runtime_error("Upload expired; retry the transfer");
++        auto &upload = *it->second;
++        upload.touched = std::chrono::steady_clock::now();
++        if (op == "cancel") { uploads.erase(it); return {{"ok", true}}; }
++        if (op == "write") {
++          const auto bytes = decode(request.at("data").get<std::string>());
++          if (request.at("offset").get<uint64_t>() != upload.offset || bytes.size() > chunk_size || bytes.size() > upload.size - upload.offset) throw std::runtime_error("Invalid upload offset or size");
++          upload.stream.write(bytes.data(), bytes.size());
++          if (!upload.stream || EVP_DigestUpdate(upload.hash.get(), bytes.data(), bytes.size()) != 1) { uploads.erase(it); throw std::runtime_error("Cannot write file; check free space"); }
++          upload.offset += bytes.size();
++          return {{"ok", true}, {"offset", upload.offset}};
++        }
++        if (op != "finish") throw std::runtime_error("Unknown operation");
++        if (upload.offset != upload.size) throw std::runtime_error("Incomplete upload");
++        unsigned char digest[EVP_MAX_MD_SIZE]; unsigned int len = 0;
++        if (EVP_DigestFinal_ex(upload.hash.get(), digest, &len) != 1) throw std::runtime_error("Hash failed");
++        if (encode(std::string(reinterpret_cast<char *>(digest), len)) != request.at("sha256").get<std::string>()) { uploads.erase(it); throw std::runtime_error("Checksum mismatch"); }
++        upload.stream.flush();
++        if (!upload.stream) { uploads.erase(it); throw std::runtime_error("Cannot flush file"); }
++        upload.stream.close();
++        auto destination = resolve(upload.path);
++        if (version(destination) != upload.expected) { uploads.erase(it); return {{"ok", false}, {"code", "conflict"}, {"error", "Destination changed"}}; }
++#ifdef _WIN32
++        if (!MoveFileExW(upload.temp.c_str(), destination.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) throw std::runtime_error("Cannot publish file");
++#else
++        fs::rename(upload.temp, destination);
++#endif
++        uploads.erase(it);
++        return {{"ok", true}};
++      } catch (const std::exception &e) {
++        return {{"ok", false}, {"error", e.what()}};
++      }
++    }
++  };
++}
++
++#endif // DESK_FILES_H

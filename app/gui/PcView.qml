@@ -614,6 +614,14 @@ FocusScope {
         parent: moreButton
         y: moreButton.height
         NavigableMenuItem {
+            text: qsTr("File transfer")
+            enabled: pcPage.selectedDevice && pcPage.selectedDevice.pcOnline && pcPage.selectedDevice.pcPaired
+            onTriggered: if (!model.openFileTransfer(pcList.currentIndex, window.darkTheme)) {
+                errorDialog.text = qsTr("Unable to open file transfer");
+                errorDialog.open();
+            }
+        }
+        NavigableMenuItem {
             text: qsTr("Wake PC")
             visible: pcPage.selectedDevice && !pcPage.selectedDevice.pcOnline && pcPage.selectedDevice.pcWakeable
             onTriggered: computerModel.wakeComputer(pcList.currentIndex)

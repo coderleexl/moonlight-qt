@@ -5,6 +5,7 @@ Runs only in CI against an explicitly provided helper, with temporary identities
 Never reads the user's Desk configuration or sends passwords over HTTP.
 """
 import datetime
+import base64
 import hashlib
 import json
 import os
@@ -91,6 +92,58 @@ def handshake(password, key, cert, pem, should_accept):
     return server_pem
 
 
+def test_file_transfer(directory, context, server_pem):
+    """Exercise the real HTTPS route, certificate gate, sandbox and chunk protocol."""
+    def files(payload, tls=context):
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=tls))
+        req = urllib.request.Request('https://127.0.0.1:48984/desk/files',
+                                     json.dumps(payload).encode(), {'Content-Type': 'application/json'})
+        with opener.open(req, timeout=10) as response:
+            return response.read()
+
+    unknown = directory / 'unknown'
+    unknown.mkdir()
+    identity(unknown)
+    unpaired = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    unpaired.check_hostname = False
+    unpaired.load_verify_locations(cadata=server_pem.decode())
+    unpaired.load_cert_chain(unknown / 'client.pem', unknown / 'client.key')
+    denied = files({'op': 'list', 'path': ''}, unpaired)
+    assert ET.fromstring(denied).get('status_code') == '401', 'Unpaired certificate accessed file endpoint'
+
+    def call(**payload):
+        return json.loads(files(payload))
+    assert call(op='list', path='')['protocol'] == 1
+    for invalid in ('../escape', '/etc/passwd', 'C:/Windows', '.desk-transfers/file', 'file:stream'):
+        assert not call(op='stat', path=invalid)['ok']
+    assert call(op='mkdir', path='中文 目录')['ok']
+    path = '中文 目录/roundtrip.bin'
+    data = secrets.token_bytes(600000)
+    upload = call(op='begin', path=path, size=len(data), expected='missing')
+    assert upload['ok'], upload
+    token = upload['token']
+    assert not (directory / 'shared' / path).exists(), 'Partial file was published'
+    for offset in range(0, len(data), 256 * 1024):
+        chunk = data[offset:offset + 256 * 1024]
+        assert call(op='write', token=token, offset=offset, data=base64.b64encode(chunk).decode())['ok']
+    assert call(op='finish', token=token, sha256=base64.b64encode(hashlib.sha256(data).digest()).decode())['ok']
+    info = call(op='stat', path=path)
+    downloaded = b''
+    while len(downloaded) < info['size']:
+        result = call(op='read', path=path, offset=len(downloaded), version=info['version'])
+        assert result['ok'], result
+        chunk = base64.b64decode(result['data'], validate=True)
+        assert chunk, 'Read made no progress'
+        downloaded += chunk
+    assert downloaded == data
+    assert not call(op='begin', path=path, size=0, expected='missing')['ok'], 'Silently overwrote a file'
+    token = call(op='begin', path='cancel.bin', size=10, expected='missing')['token']
+    assert call(op='cancel', token=token)['ok']
+    assert not (directory / 'shared' / 'cancel.bin').exists()
+    assert not list((directory / 'shared' / '.desk-transfers').iterdir())
+    print('File transfer HTTPS tests passed: certificate authorization, sandbox, UTF-8, chunks, checksum, conflict, cancellation.')
+
+
 def run(helper, secret):
     with tempfile.TemporaryDirectory(prefix='desk-access-ci-') as temp:
         directory = Path(temp)
@@ -105,7 +158,8 @@ def run(helper, secret):
                         log_path=directory / 'host.log')
         conf = directory / 'sunshine.conf'
         conf.write_text(''.join(f'{k} = {v}\n' for k, v in settings.items()))
-        env = dict(os.environ, DESK_ACCESS_PASSWORD=secret, DESK_DEVICE_ID=device_id)
+        env = dict(os.environ, DESK_ACCESS_PASSWORD=secret, DESK_DEVICE_ID=device_id,
+                   DESK_FILE_ROOT=base64.b64encode(str(directory / "shared").encode()).decode())
         with (directory / 'process.log').open('w') as output:
             process = subprocess.Popen([str(helper), str(conf)], cwd=helper.parent,
                                        env=env, stdout=output, stderr=subprocess.STDOUT)
@@ -135,6 +189,7 @@ def run(helper, secret):
                 assert request('pair', dict(uniqueid='ci', phrase='pairchallenge'), context).findtext('paired') == '1'
                 # A subsequent connection uses the saved certificate, no password.
                 assert request('serverinfo', dict(uniqueid='ci'), context).findtext('PairStatus') == '1'
+                test_file_transfer(directory, context, server)
                 # Repeated cancellation must release pending sessions immediately.
                 for _ in range(3):
                     session = str(uuid.uuid4())

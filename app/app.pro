@@ -208,6 +208,7 @@ SOURCES += \
     streaming/streamutils.cpp \
     backend/autoupdatechecker.cpp \
     backend/sunshinemanager.cpp \
+    backend/filetransfer.cpp \
     path.cpp \
     settings/mappingmanager.cpp \
     gui/sdlgamepadkeynavigation.cpp \
@@ -249,6 +250,7 @@ HEADERS += \
     streaming/streamutils.h \
     backend/autoupdatechecker.h \
     backend/sunshinemanager.h \
+    backend/filetransfer.h \
     backend/deskaccess.h \
     path.h \
     settings/mappingmanager.h \

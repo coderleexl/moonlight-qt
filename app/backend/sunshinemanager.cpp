@@ -14,6 +14,7 @@
 #include <QNetworkProxy>
 #include <QProcessEnvironment>
 #include <QSaveFile>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTcpServer>
 #include <QUrl>
@@ -311,6 +312,7 @@ void SunshineManager::start()
     auto environment = QProcessEnvironment::systemEnvironment();
     environment.insert("DESK_DEVICE_ID", m_DeviceId);
     environment.insert("DESK_ACCESS_PASSWORD", m_AccessPassword);
+    environment.insert("DESK_FILE_ROOT", QString::fromLatin1(sharedDirectory().toUtf8().toBase64()));
     m_Process.setProcessEnvironment(environment);
     m_Process.setArguments({config.filePath("sunshine.conf"),
                            QString("port=%1").arg(basePort()), "address_family=ipv4", "origin_web_ui_allowed=pc", "upnp=disabled",
@@ -372,4 +374,23 @@ void SunshineManager::openAccessibilitySettings()
 #ifdef Q_OS_MACOS
     QDesktopServices::openUrl(QUrl("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"));
 #endif
+}
+
+QString SunshineManager::sharedDirectory() const
+{
+    QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (downloads.isEmpty()) downloads = QDir::homePath();
+    return QSettings().value("host/sharedDirectory", QDir(downloads).filePath("Desk")).toString();
+}
+void SunshineManager::setSharedDirectory(const QString& directory)
+{
+    if (m_Process.state() != QProcess::NotRunning) return;
+    auto path = QDir::cleanPath(QUrl(directory).isLocalFile() ? QUrl(directory).toLocalFile() : directory);
+    if (!QDir::isAbsolutePath(path) || path == QDir::rootPath()) return;
+    QSettings().setValue("host/sharedDirectory", path);
+    emit sharedDirectoryChanged();
+}
+void SunshineManager::openSharedDirectory()
+{
+    if (QDir().mkpath(sharedDirectory())) QDesktopServices::openUrl(QUrl::fromLocalFile(sharedDirectory()));
 }

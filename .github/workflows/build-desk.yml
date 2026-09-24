@@ -168,6 +168,10 @@ jobs:
       - name: Build Linux DEB
         if: runner.os == 'Linux'
         run: bash scripts/build-desk-deb.sh
+      - name: Test file transfer, TLS authorization and QML window
+        shell: bash
+        run: |
+          "${DESK_TEST_PYTHON:-python3}" scripts/test-file-transfer.py
       - name: Test host process management (macOS and Linux)
         if: runner.os != 'Windows'
         shell: bash

@@ -1,5 +1,6 @@
 #include "session.h"
 #include "streamtoolbar.h"
+#include "backend/filetransfer.h"
 #include "settings/streamingpreferences.h"
 #include "streaming/streamutils.h"
 #include "backend/richpresencemanager.h"
@@ -2031,6 +2032,18 @@ void Session::exec()
                 m_InputHandler->releaseAllInputs();
                 m_InputHandler->setCaptureActive(false);
                 toggleFullscreen();
+                break;
+            case StreamToolbar::Action::FileTransfer:
+                m_InputHandler->releaseAllInputs();
+                m_InputHandler->setCaptureActive(false);
+                // Leave fullscreen so the independent transfer window is reachable on every desktop.
+                if (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN) toggleFullscreen();
+                if (!FileTransfer::launch(m_Computer->activeAddress.address(), m_Computer->activeHttpsPort,
+                                          m_Computer->serverCert, m_Computer->name,
+                                          m_QtWindow && m_QtWindow->property("darkTheme").toBool())) {
+                    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Desk",
+                                             QCoreApplication::translate("PcView", "Unable to open file transfer").toUtf8().constData(), m_Window);
+                }
                 break;
             case StreamToolbar::Action::Disconnect:
                 goto DispatchDeferredCleanup;

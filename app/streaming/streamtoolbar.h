@@ -8,7 +8,7 @@
 class StreamToolbar
 {
 public:
-    enum class Action { None, Consumed, ReleaseInput, ResumeInput, ToggleMouseMode, ToggleFullscreen, Disconnect };
+    enum class Action { None, Consumed, ReleaseInput, ResumeInput, ToggleMouseMode, ToggleFullscreen, FileTransfer, Disconnect };
 
     explicit StreamToolbar(SDL_Window* streamWindow, bool dark);
     ~StreamToolbar();

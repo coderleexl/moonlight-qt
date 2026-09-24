@@ -128,6 +128,29 @@ FocusScope {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
             }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Label { text: qsTr("File transfer shared folder"); color: window.textColor }
+                RowLayout {
+                    Layout.fillWidth: true
+                    TextField {
+                        Layout.fillWidth: true
+                        text: SunshineManager.sharedDirectory
+                        selectByMouse: true
+                        enabled: !hostPage.running && !hostPage.busy
+                        onEditingFinished: SunshineManager.sharedDirectory = text
+                    }
+                    ActionButton { text: qsTr("Open folder"); onClicked: SunshineManager.openSharedDirectory() }
+                }
+                Label {
+                    text: qsTr("Authorized devices can read and write this folder. Stop hosting before changing it. Files elsewhere are not shared.")
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    color: window.secondaryColor
+                    font.pixelSize: 12
+                }
+            }
             Flow {
                 Layout.fillWidth: true
                 spacing: 12

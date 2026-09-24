@@ -17,7 +17,7 @@ QString tr(const char* text)
 {
     return QCoreApplication::translate("StreamToolbar", text);
 }
-constexpr int ExpandedWidth = 480;
+constexpr int ExpandedWidth = 584;
 constexpr int ExpandedHeight = 44;
 constexpr int CollapsedHeight = 20;
 
@@ -167,20 +167,20 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
 
 QRect StreamToolbar::buttonRect(int index) const
 {
-    if (index == 4) {
-        return QRect(448, 8, 26, 28);
+    if (index == 5) {
+        return QRect(552, 8, 26, 28);
     }
-    const int x[] = {6, 126, 224, 348};
-    const int widths[] = {116, 94, 120, 94};
+    const int x[] = {6, 126, 224, 348, 452};
+    const int widths[] = {116, 94, 120, 100, 94};
     return QRect(x[index], 6, widths[index], 32);
 }
 
 int StreamToolbar::hitTest(int x, int y) const
 {
     if (!m_Expanded) {
-        return 4;
+        return 5;
     }
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         if (buttonRect(i).contains(qRound(x / m_Scale), qRound(y / m_Scale))) {
             return i;
         }
@@ -264,12 +264,12 @@ StreamToolbar::Action StreamToolbar::handleEvent(const SDL_Event& event)
             if (event.key.keysym.scancode == SDL_SCANCODE_Z) return Action::ReleaseInput;
         }
         if (event.key.keysym.sym == SDLK_ESCAPE) {
-            if (m_Expanded) activated = 4;
+            if (m_Expanded) activated = 5;
         }
         else if (event.key.keysym.sym == SDLK_TAB) {
             const bool backwards = event.key.keysym.mod & KMOD_SHIFT;
-            m_KeyboardButton = m_KeyboardButton < 0 ? (backwards ? 4 : 0) :
-                               (m_KeyboardButton + (backwards ? 4 : 1)) % 5;
+            m_KeyboardButton = m_KeyboardButton < 0 ? (backwards ? 5 : 0) :
+                               (m_KeyboardButton + (backwards ? 5 : 1)) % 6;
             paint();
         }
         else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_SPACE) {
@@ -284,8 +284,9 @@ StreamToolbar::Action StreamToolbar::handleEvent(const SDL_Event& event)
         setExpanded(false);
         SDL_RaiseWindow(m_StreamWindow);
         return Action::ReleaseInput;
-    case 3: return Action::Disconnect;
-    case 4:
+    case 3: return Action::FileTransfer;
+    case 4: return Action::Disconnect;
+    case 5:
         setExpanded(!m_Expanded);
         SDL_RaiseWindow(m_Expanded ? m_Window : m_StreamWindow);
         return m_Expanded ? Action::ReleaseInput : Action::ResumeInput;
@@ -348,17 +349,17 @@ void StreamToolbar::paint()
     else {
         const QString labels[] = {m_AbsoluteMouse ? tr("Mouse: Desktop") : tr("Mouse: Game"),
                                   m_Fullscreen ? tr("Windowed") : tr("Fullscreen"),
-                                  tr("Release mouse"), tr("Disconnect")};
-        for (int i = 0; i < 5; i++) {
+                                  tr("Release mouse"), tr("Files"), tr("Disconnect")};
+        for (int i = 0; i < 6; i++) {
             const QRect r = buttonRect(i);
             p.setPen(i == m_KeyboardButton ? QPen(accent, 1.5) : QPen(Qt::NoPen));
             p.setBrush(i == m_Hover ? (m_Dark ? QColor(90, 135, 170, 90) : QColor(190, 220, 250, 140)) : QColor(255, 255, 255, m_Dark ? 4 : 16));
             p.drawRoundedRect(r.adjusted(1, 1, -1, -1), 8, 8);
-            if (i == 4) {
+            if (i == 5) {
                 chevron(r.center().x(), r.center().y(), true);
                 continue;
             }
-            const QColor ink = i == 3 ? QColor(m_Dark ? "#FF9999" : "#C13C3C") : accent;
+            const QColor ink = i == 4 ? QColor(m_Dark ? "#FF9999" : "#C13C3C") : accent;
             p.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             p.setBrush(Qt::NoBrush);
             const int x = r.x() + 10, y = r.center().y();
@@ -375,11 +376,19 @@ void StreamToolbar::paint()
                 pointer << QPoint(x, y - 8) << QPoint(x + 12, y + 1) << QPoint(x + 6, y + 3) << QPoint(x + 3, y + 9);
                 p.drawPolygon(pointer);
             }
+            else if (i == 3) {
+                p.drawLine(x, y - 4, x + 15, y - 4);
+                p.drawLine(x + 11, y - 8, x + 15, y - 4);
+                p.drawLine(x + 11, y, x + 15, y - 4);
+                p.drawLine(x, y + 4, x + 15, y + 4);
+                p.drawLine(x, y + 4, x + 4, y);
+                p.drawLine(x, y + 4, x + 4, y + 8);
+            }
             else {
                 p.drawArc(QRect(x, y - 7, 15, 15), 45 * 16, 270 * 16);
                 p.drawLine(x + 7, y - 9, x + 7, y - 1);
             }
-            p.setPen(i == 3 ? ink : fg);
+            p.setPen(i == 4 ? ink : fg);
             QRect textRect = r.adjusted(30, 0, -5, 0);
             p.drawText(textRect, Qt::AlignCenter, p.fontMetrics().elidedText(labels[i], Qt::ElideRight, textRect.width()));
         }

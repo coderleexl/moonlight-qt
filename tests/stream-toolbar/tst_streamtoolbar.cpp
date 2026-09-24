@@ -51,8 +51,8 @@ private slots:
                 e.type = SDL_MOUSEBUTTONDOWN;
                 e.button.windowID = panelId;
                 e.button.button = SDL_BUTTON_LEFT;
-                const int centers[] = {64, 173, 284, 395};
-                e.button.x = centers[index] * width / 480;
+                const int centers[] = {64, 173, 284, 398, 499};
+                e.button.x = centers[index] * width / 584;
                 e.button.y = height / 2;
                 toolbar.handleEvent(e);
                 e.type = SDL_MOUSEBUTTONUP;
@@ -63,7 +63,8 @@ private slots:
             QVERIFY(toolbar.expanded());
             QCOMPARE(click(0), StreamToolbar::Action::ToggleMouseMode);
             QCOMPARE(click(1), StreamToolbar::Action::ToggleFullscreen);
-            QCOMPARE(click(3), StreamToolbar::Action::Disconnect);
+            QCOMPARE(click(3), StreamToolbar::Action::FileTransfer);
+            QCOMPARE(click(4), StreamToolbar::Action::Disconnect);
             QCOMPARE(key(SDLK_q, combo), StreamToolbar::Action::Disconnect);
             QCOMPARE(key(SDLK_x, combo), StreamToolbar::Action::ToggleFullscreen);
             QCOMPARE(key(SDLK_z, combo), StreamToolbar::Action::ReleaseInput);
@@ -89,7 +90,7 @@ private slots:
             SDL_Delay(150);
             SDL_PumpEvents();
             toolbar.sync(false, true);
-            QCOMPARE(click(3), StreamToolbar::Action::Disconnect);
+            QCOMPARE(click(4), StreamToolbar::Action::Disconnect);
 #ifdef Q_OS_DARWIN
             QTRY_VERIFY_WITH_TIMEOUT((SDL_PumpEvents(), toolbar.sync(false, true), checkToolbarNativeState(panel, stream)), 2000);
             // Regression: Cocoa can hide/detach a child during renderer/window

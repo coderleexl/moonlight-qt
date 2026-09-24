@@ -22,6 +22,7 @@ class SunshineManager : public QObject
     Q_PROPERTY(QString configDirectory READ configDirectory CONSTANT)
     Q_PROPERTY(QString deviceId READ deviceId NOTIFY accessChanged)
     Q_PROPERTY(QString accessPassword READ accessPassword NOTIFY accessChanged)
+    Q_PROPERTY(QString sharedDirectory READ sharedDirectory WRITE setSharedDirectory NOTIFY sharedDirectoryChanged)
     Q_PROPERTY(QStringList lanAddresses READ lanAddresses NOTIFY stateChanged)
 
 public:
@@ -44,6 +45,10 @@ public:
     QString accessPassword() const { return m_AccessPassword; }
     QStringList lanAddresses() const;
 
+    QString sharedDirectory() const;
+    void setSharedDirectory(const QString& directory);
+    Q_INVOKABLE void openSharedDirectory();
+
     Q_INVOKABLE void start();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void openConfiguration();
@@ -58,6 +63,7 @@ signals:
     void localOnlyChanged();
     void logChanged();
     void accessChanged();
+    void sharedDirectoryChanged();
 
 private:
     QString executablePath() const;

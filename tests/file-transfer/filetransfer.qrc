@@ -1,0 +1,8 @@
+<RCC><qresource prefix="/">
+<file alias="gui/FileTransferWindow.qml">../../app/gui/FileTransferWindow.qml</file>
+<file alias="gui/FileTransferPane.qml">../../app/gui/FileTransferPane.qml</file>
+<file alias="gui/ActionButton.qml">../../app/gui/ActionButton.qml</file>
+<file alias="res/file-transfer.svg">../../app/res/file-transfer.svg</file>
+<file alias="res/transfer-file.svg">../../app/res/transfer-file.svg</file>
+<file alias="res/transfer-folder.svg">../../app/res/transfer-folder.svg</file>
+</qresource></RCC>

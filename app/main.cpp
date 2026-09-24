@@ -52,6 +52,7 @@
 #include "backend/computermanager.h"
 #include "backend/systemproperties.h"
 #include "backend/sunshinemanager.h"
+#include "backend/filetransfer.h"
 #include "streaming/session.h"
 #include "settings/streamingpreferences.h"
 #include "gui/sdlgamepadkeynavigation.h"
@@ -809,6 +810,12 @@ int main(int argc, char *argv[])
         }
     }
 #endif
+
+    if (app.arguments().value(1) == "--desk-files") {
+        StreamingPreferences::get()->retranslate();
+        IdentityManager::get();
+        return FileTransfer::runWindow(app.arguments());
+    }
 
     GlobalCommandLineParser parser;
     GlobalCommandLineParser::ParseResult commandLineParserResult = parser.parse(app.arguments());

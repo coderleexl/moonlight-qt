@@ -1,4 +1,5 @@
 #include "computermodel.h"
+#include "backend/filetransfer.h"
 
 #include <QThreadPool>
 
@@ -270,6 +271,16 @@ bool ComputerModel::isComputerOnline(int computerIndex) const
         return false;
     QReadLocker lock(&m_Computers[computerIndex]->lock);
     return m_Computers[computerIndex]->state == NvComputer::CS_ONLINE;
+}
+
+bool ComputerModel::openFileTransfer(int computerIndex, bool dark)
+{
+    if (computerIndex < 0 || computerIndex >= m_Computers.size()) return false;
+    auto computer = m_Computers[computerIndex];
+    QReadLocker lock(&computer->lock);
+    if (computer->state != NvComputer::CS_ONLINE || computer->pairState != NvComputer::PS_PAIRED) return false;
+    return FileTransfer::launch(computer->activeAddress.address(), computer->activeHttpsPort,
+                                computer->serverCert, computer->name, dark);
 }
 
 void ComputerModel::handleComputerStateChanged(NvComputer* computer)

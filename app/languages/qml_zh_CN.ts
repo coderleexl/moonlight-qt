@@ -575,6 +575,14 @@
         <source>Looking for this device on the local network…</source>
         <translation>正在局域网内查找设备…</translation>
     </message>
+    <message>
+        <source>File transfer</source>
+        <translation>文件传输</translation>
+    </message>
+    <message>
+        <source>Unable to open file transfer</source>
+        <translation>无法打开文件传输窗口</translation>
+    </message>
 </context>
     <context>
         <name>PendingPairingTask</name>
@@ -1859,6 +1867,18 @@
         <source>Confirm password</source>
         <translation>确认密码</translation>
     </message>
+    <message>
+        <source>File transfer shared folder</source>
+        <translation>文件传输共享目录</translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation>打开目录</translation>
+    </message>
+    <message>
+        <source>Authorized devices can read and write this folder. Stop hosting before changing it. Files elsewhere are not shared.</source>
+        <translation>已授权设备可读写此目录。修改前请停止共享服务，其他位置的文件不会开放。</translation>
+    </message>
 </context>
 <context>
     <name>SunshineManager</name>
@@ -1931,5 +1951,230 @@
             <source>Ctrl+Alt+Shift+T: toolbar · Q: disconnect · Z: release mouse</source>
             <translation>Ctrl+Alt+Shift+T：工具栏 · Q：断开 · Z：释放鼠标</translation>
         </message>
-    </context>
+        <message>
+        <source>Files</source>
+        <translation>传文件</translation>
+    </message>
+</context>
+<context>
+    <name>FileTransfer</name>
+    <message>
+        <source>A directory already uses this file name.</source>
+        <translation>此名称已被文件夹占用。</translation>
+    </message>
+    <message>
+        <source>A paired host is required.</source>
+        <translation>请先连接并授权远端设备。</translation>
+    </message>
+    <message>
+        <source>Cannot create directory.</source>
+        <translation>无法创建文件夹。</translation>
+    </message>
+    <message>
+        <source>Cannot find an unused file name.</source>
+        <translation>无法找到可用的文件名。</translation>
+    </message>
+    <message>
+        <source>Cannot open this directory.</source>
+        <translation>无法打开此目录。</translation>
+    </message>
+    <message>
+        <source>Cannot read file or source changed.</source>
+        <translation>无法读取文件，或源文件已发生变化。</translation>
+    </message>
+    <message>
+        <source>Connection failed: %1</source>
+        <translation>连接失败：%1</translation>
+    </message>
+    <message>
+        <source>Destination changed; retry the transfer.</source>
+        <translation>目标文件已发生变化，请重新传输。</translation>
+    </message>
+    <message>
+        <source>Destination is a symbolic link.</source>
+        <translation>目标是符号链接，无法写入。</translation>
+    </message>
+    <message>
+        <source>Invalid file name.</source>
+        <translation>文件名无效。</translation>
+    </message>
+    <message>
+        <source>Invalid transfer response.</source>
+        <translation>远端返回的传输数据无效。</translation>
+    </message>
+    <message>
+        <source>Source changed; retry the transfer.</source>
+        <translation>源文件已发生变化，请重新传输。</translation>
+    </message>
+    <message>
+        <source>Source is missing or is a symbolic link.</source>
+        <translation>源文件不存在或是符号链接。</translation>
+    </message>
+    <message>
+        <source>The remote host does not support file transfer. Update Desk on both computers and restart hosting.</source>
+        <translation>远端尚不支持文件传输。请更新两端 Desk 并重新启动共享服务。</translation>
+    </message>
+    <message>
+        <source>This directory has too many entries.</source>
+        <translation>此目录的文件数量过多。</translation>
+    </message>
+    <message>
+        <source>Too many files or directory levels. Transfer a smaller selection.</source>
+        <translation>文件数量或目录层级过多，请分批传输。</translation>
+    </message>
+    <message>
+        <source>Transfer failed.</source>
+        <translation>传输失败。</translation>
+    </message>
+</context>
+<context>
+    <name>FileTransferWindow</name>
+    <message>
+        <source>A file with this name already exists</source>
+        <translation>目标位置已有同名文件</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Cancelled</source>
+        <translation>已取消</translation>
+    </message>
+    <message>
+        <source>Clear finished</source>
+        <translation>清除已结束</translation>
+    </message>
+    <message>
+        <source>Completed</source>
+        <translation>已完成</translation>
+    </message>
+    <message>
+        <source>Drag between panels to copy. Source files are kept. Closing this window lets transfers continue.</source>
+        <translation>在两栏之间拖拽即可复制，源文件会保留。关闭窗口后传输继续。</translation>
+    </message>
+    <message>
+        <source>Failed</source>
+        <translation>失败</translation>
+    </message>
+    <message>
+        <source>File transfer</source>
+        <translation>文件传输</translation>
+    </message>
+    <message>
+        <source>Finishing…</source>
+        <translation>正在完成…</translation>
+    </message>
+    <message>
+        <source>Folder name</source>
+        <translation>文件夹名称</translation>
+    </message>
+    <message>
+        <source>Keep both</source>
+        <translation>保留两份</translation>
+    </message>
+    <message>
+        <source>New folder</source>
+        <translation>新建文件夹</translation>
+    </message>
+    <message>
+        <source>Overwrite</source>
+        <translation>覆盖</translation>
+    </message>
+    <message>
+        <source>Queued</source>
+        <translation>等待中</translation>
+    </message>
+    <message>
+        <source>Retry</source>
+        <translation>重试</translation>
+    </message>
+    <message>
+        <source>Select files or folders to start a transfer</source>
+        <translation>选择文件或文件夹开始传输</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>跳过</translation>
+    </message>
+    <message>
+        <source>Skipped</source>
+        <translation>已跳过</translation>
+    </message>
+    <message>
+        <source>Speed limit</source>
+        <translation>传输限速</translation>
+    </message>
+    <message>
+        <source>Transfer queue</source>
+        <translation>传输队列</translation>
+    </message>
+    <message>
+        <source>Transferring</source>
+        <translation>传输中</translation>
+    </message>
+    <message>
+        <source>Unlimited</source>
+        <translation>不限速</translation>
+    </message>
+    <message>
+        <source>Waiting for your choice</source>
+        <translation>等待选择</translation>
+    </message>
+</context>
+<context>
+    <name>FileTransferPane</name>
+    <message>
+        <source>%1 selected</source>
+        <translation>已选择 %1 项</translation>
+    </message>
+    <message>
+        <source>Connecting…</source>
+        <translation>正在连接…</translation>
+    </message>
+    <message>
+        <source>Home directory</source>
+        <translation>主目录</translation>
+    </message>
+    <message>
+        <source>New folder</source>
+        <translation>新建文件夹</translation>
+    </message>
+    <message>
+        <source>Parent directory</source>
+        <translation>上级目录</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>刷新</translation>
+    </message>
+    <message>
+        <source>Remote</source>
+        <translation>远端</translation>
+    </message>
+    <message>
+        <source>Shared folder: %1</source>
+        <translation>共享目录：%1</translation>
+    </message>
+    <message>
+        <source>This computer</source>
+        <translation>本机</translation>
+    </message>
+    <message>
+        <source>This folder is empty</source>
+        <translation>此文件夹为空</translation>
+    </message>
+    <message>
+        <source>Upload →</source>
+        <translation>上传 →</translation>
+    </message>
+    <message>
+        <source>← Download</source>
+        <translation>← 下载</translation>
+    </message>
+    <message>
+        <source>Select files to upload to the folder on the right</source>
+        <translation>选择文件，上传至右侧当前目录</translation>
+    </message>
+</context>
 </TS>

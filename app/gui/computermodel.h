@@ -34,6 +34,7 @@ public:
     virtual QHash<int, QByteArray> roleNames() const override;
 
     Q_INVOKABLE void deleteComputer(int computerIndex);
+    Q_INVOKABLE bool openFileTransfer(int computerIndex, bool dark);
 
     Q_INVOKABLE QString generatePinString();
 

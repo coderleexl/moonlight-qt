@@ -26,18 +26,19 @@ Rectangle {
     }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 10
+        anchors.margins: 12
+        spacing: 6
         RowLayout {
             Layout.fillWidth: true
             Label { textFormat: Text.PlainText; text: pane.remote ? qsTr("Remote") + " · " + hostName : qsTr("This computer"); font.pixelSize: 17; font.bold: true; color: window.textColor; Layout.fillWidth: true; elide: Text.ElideRight }
-            ToolButton { text: "↻"; Accessible.name: qsTr("Refresh"); onClicked: pane.remote ? transfer.browseRemote(pane.currentPath) : transfer.browseLocal(pane.currentPath) }
+            ToolButton { implicitHeight: 32; text: "↻"; Accessible.name: qsTr("Refresh"); onClicked: pane.remote ? transfer.browseRemote(pane.currentPath) : transfer.browseLocal(pane.currentPath) }
         }
         RowLayout {
             Layout.fillWidth: true
-            ToolButton { text: "↑"; Accessible.name: qsTr("Parent directory"); enabled: !pane.remote || pane.currentPath.length > 0; onClicked: transfer.parentDirectory(pane.remote) }
+            ToolButton { implicitHeight: 36; text: "↑"; Accessible.name: qsTr("Parent directory"); enabled: !pane.remote || pane.currentPath.length > 0; onClicked: transfer.parentDirectory(pane.remote) }
             TextField {
                 id: pathField
+                implicitHeight: 36
                 Layout.fillWidth: true
                 text: pane.remote ? "/" + pane.currentPath : pane.currentPath
                 selectByMouse: true
@@ -45,7 +46,7 @@ Rectangle {
                 onTextChanged: cursorPosition = 0
                 onAccepted: pane.remote ? transfer.browseRemote(text.replace(/^\/+/, "")) : transfer.browseLocal(text)
             }
-            ToolButton { text: "⌂"; Accessible.name: qsTr("Home directory"); onClicked: pane.remote ? transfer.browseRemote("") : transfer.home() }
+            ToolButton { implicitHeight: 36; text: "⌂"; Accessible.name: qsTr("Home directory"); onClicked: pane.remote ? transfer.browseRemote("") : transfer.home() }
         }
         Label { textFormat: Text.PlainText;
             Layout.fillWidth: true
@@ -88,10 +89,12 @@ Rectangle {
                     anchors.fill: parent
                     anchors.leftMargin: 44
                     hoverEnabled: true
+                    preventStealing: true
                     drag.target: dragPreview
                     drag.threshold: 8
                     property bool systemDragStarted: false
                     onPressed: function(mouse) {
+                        files.forceActiveFocus(Qt.MouseFocusReason);
                         systemDragStarted = false;
                         if (!(mouse.modifiers & Qt.ControlModifier) && !(mouse.modifiers & Qt.MetaModifier) && pane.selected.indexOf(modelData.name) < 0) pane.selected = [modelData.name];
                         var point = mapToItem(pane, mouseX, mouseY);

@@ -208,6 +208,12 @@ ApplicationWindow {
         }
     }
 
+    AboutDialog {
+        id: aboutDialog
+        version: SystemProperties.versionString
+        licenseText: SystemProperties.openSourceLicense
+    }
+
     RowLayout {
         id: applicationLayout
         anchors.fill: parent
@@ -339,14 +345,33 @@ ApplicationWindow {
                     onClicked: window.darkTheme = !window.darkTheme
                 }
 
-                Label {
-                    visible: !window.compactNavigation
-                    text: qsTr("Version %1").arg(SystemProperties.versionString)
-                    font.pixelSize: 12
-                    Layout.leftMargin: 20
-                    color: window.secondaryColor
+                ToolButton {
+                    id: aboutButton
+                    objectName: "aboutButton"
+                    text: window.compactNavigation ? "ⓘ" : qsTr("%1 · About").arg(SystemProperties.versionString)
+                    Accessible.name: qsTr("About Desk")
                     Layout.fillWidth: true
-                    elide: Text.ElideRight
+                    implicitHeight: 28
+                    leftPadding: window.compactNavigation ? 0 : 20
+                    rightPadding: window.compactNavigation ? 0 : 12
+                    activeFocusOnTab: true
+                    contentItem: Label {
+                        text: aboutButton.text
+                        font.pixelSize: window.compactNavigation ? 18 : 12
+                        color: aboutButton.hovered || aboutButton.visualFocus ? window.accentColor : window.secondaryColor
+                        verticalAlignment: Text.AlignVCenter
+                        horizontalAlignment: window.compactNavigation ? Text.AlignHCenter : Text.AlignLeft
+                        elide: Text.ElideRight
+                    }
+                    background: Rectangle {
+                        radius: 6
+                        color: aboutButton.hovered ? window.hoverColor : "transparent"
+                        border.width: aboutButton.visualFocus ? 1 : 0
+                        border.color: window.accentColor
+                    }
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("About Desk")
+                    onClicked: aboutDialog.open()
                 }
             }
         }

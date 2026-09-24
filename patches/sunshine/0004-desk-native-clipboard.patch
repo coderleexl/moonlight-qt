@@ -55,7 +55,7 @@
        // We want to prepare display only if there are no active sessions at
 @@ -1811,6 +1829,27 @@
        }
-       response->write(SimpleWeb::StatusCode::success_ok, result.dump(), {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
+       const auto body = result.dump(); response->write(SimpleWeb::StatusCode::success_ok, body, {{"Content-Length", std::to_string(body.size())}, {"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
      };
 +    https_server.resource["^/desk/clipboard$"]["POST"] = [](auto response, auto request) {
 +      response->close_connection_after_response = true;
@@ -76,7 +76,7 @@
 +          result = {{"ok", false}, {"error", "Invalid clipboard request"}};
 +        }
 +      }
-+      response->write(SimpleWeb::StatusCode::success_ok, result.dump(), {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
++      const auto body = result.dump(); response->write(SimpleWeb::StatusCode::success_ok, body, {{"Content-Length", std::to_string(body.size())}, {"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
 +    };
      https_server.config.max_request_streambuf_size = 1024 * 1024;
  

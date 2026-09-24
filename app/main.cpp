@@ -941,14 +941,11 @@ int main(int argc, char *argv[])
     }
 #endif
 
-#ifndef Q_OS_DARWIN
-    // Set the window icon except on macOS where we want to keep the
-    // modified macOS 11 style rounded corner icon.
 #ifdef MOONLIGHT_HOST_PREVIEW
+    // Match the file transfer window's SVG icon on every desktop, including the macOS Dock.
     app.setWindowIcon(QIcon(":/res/desk.svg"));
-#else
+#elif !defined(Q_OS_DARWIN)
     app.setWindowIcon(QIcon(":/res/moonlight.svg"));
-#endif
 #endif
 
     // This is necessary to show our icon correctly on Wayland

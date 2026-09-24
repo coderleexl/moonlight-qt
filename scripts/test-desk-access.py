@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import socket
 import ssl
 import subprocess
 import sys
@@ -100,6 +101,27 @@ def test_file_transfer(directory, context, server_pem):
                                      json.dumps(payload).encode(), {'Content-Type': 'application/json'})
         with opener.open(req, timeout=10) as response:
             return response.read()
+
+    # A client may retain its TLS connection after reading a response. The host
+    # must frame the response and keep serving other clients without waiting for
+    # that client's close_notify (Qt and interrupted clients can delay it).
+    for route in ('files', 'clipboard'):
+        payload = b'{"op":"list","path":""}' if route == 'files' else b'{"op":"open"}'
+        with context.wrap_socket(socket.create_connection(('127.0.0.1', 48984), timeout=3),
+                                 server_hostname='localhost') as lingering:
+            lingering.sendall((f'POST /desk/{route} HTTP/1.1\r\nHost: localhost\r\n'
+                               f'Content-Type: application/json\r\nContent-Length: {len(payload)}\r\n'
+                               'Connection: close\r\n\r\n').encode() + payload)
+            response = b''
+            while b'\r\n\r\n' not in response:
+                block = lingering.recv(4096)
+                assert block, 'Host closed before sending response headers'
+                response += block
+            # Deliberately do not reply to the TLS close_notify yet.
+            assert json.loads(files({'op': 'list', 'path': ''}))['ok']
+            headers = response.split(b'\r\n\r\n', 1)[0].lower()
+            assert b'content-length:' in headers, 'Missing response length can stall Qt clients'
+    print('HTTPS response framing and delayed TLS shutdown tests passed.')
 
     unknown = directory / 'unknown'
     unknown.mkdir()

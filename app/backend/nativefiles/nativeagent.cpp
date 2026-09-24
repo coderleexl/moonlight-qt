@@ -13,6 +13,7 @@
 #include <QJsonDocument>
 #include <QLockFile>
 #include <QPointer>
+#include <QDebug>
 #include <QProcessEnvironment>
 #include <QSettings>
 #include <QStandardPaths>
@@ -104,20 +105,26 @@ void NativeAgent::startClient(QProcess& process, const QString& host, quint16 po
     process.setArguments({ "--desk-clipboard-client", QString::number(QCoreApplication::applicationPid()), host,
         QString::number(port), QString::fromLatin1(certificate.toDer().toBase64()) });
     process.start();
-    process.waitForStarted(2000);
+    if (!process.waitForStarted(2000))
+        qWarning() << "File clipboard helper failed to start:" << process.errorString();
+    else
+        qInfo() << "File clipboard helper started:" << process.processId();
 }
 int NativeAgent::run(const QStringList& args)
 {
     if (args.size() < 3)
         return 2;
     auto platform = NativeFilePlatform::create();
-    if (!platform || !platform->supported())
+    if (!platform || !platform->supported()) {
+        qWarning() << "File clipboard is unavailable on this desktop platform";
         return 3;
+    }
     platform->setAgentMode();
     QGuiApplication::setQuitOnLastWindowClosed(false);
     // Parent owns stdin: EOF is a graceful stop even while the parent's Qt loop is suspended.
     std::thread([] {
         while (std::getchar() != EOF) { }
+        qInfo() << "File clipboard helper stopping: parent channel closed";
         QMetaObject::invokeMethod(QCoreApplication::instance(), "quit", Qt::QueuedConnection);
     }).detach();
     const auto parent = args[2].toLongLong();
@@ -182,8 +189,10 @@ int NativeAgent::run(const QStringList& args)
         std::fflush(stdout);
         return QCoreApplication::exec();
     }
-    if (args[1] != "--desk-clipboard-client" || args.size() != 6 || !clipboardLock.tryLock(0))
+    if (args[1] != "--desk-clipboard-client" || args.size() != 6 || !clipboardLock.tryLock(0)) {
+        qWarning() << "File clipboard helper unavailable: invalid arguments or another session owns the clipboard";
         return 3;
+    }
     NativeTransport remote;
     remote.url = QUrl();
     remote.url.setScheme("https");
@@ -273,6 +282,7 @@ int NativeAgent::run(const QStringList& args)
     });
     remote.send(&context, { { "op", "open" } }, [&](QJsonObject result) {
         lease = result["lease"].toString();
+        qInfo() << "File clipboard session opened:" << !lease.isEmpty() << result["error"].toString();
         if (lease.isEmpty()) {
             activity.notice(result["error"].toString());
             QCoreApplication::quit();

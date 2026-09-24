@@ -595,7 +595,7 @@ FocusScope {
             Label {
                 objectName: "capabilityFootnote"
                 visible: pcPage.selectedDevice !== null
-                text: "© 2026 coderleex"
+                text: qsTr("Maintained by %1").arg("coderleex")
                 Layout.fillWidth: true
                 Layout.leftMargin: 24
                 Layout.rightMargin: 24

@@ -2,6 +2,7 @@
 #include "utils.h"
 
 #include <QGuiApplication>
+#include <QFile>
 #include <QLibraryInfo>
 
 #include "streaming/session.h"
@@ -291,4 +292,12 @@ void SystemProperties::refreshDisplays()
         displayCapabilities = displays;
         emit displayCapabilitiesChanged();
     }
+}
+
+QString SystemProperties::openSourceLicense() const
+{
+    QFile license(":/licenses/GPL-3.0.txt");
+    if (!license.open(QIODevice::ReadOnly))
+        return tr("The license could not be loaded.");
+    return QString::fromUtf8(license.readAll());
 }

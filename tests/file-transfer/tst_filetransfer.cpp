@@ -15,6 +15,7 @@
 #include <QTranslator>
 #include "backend/filetransfer.h"
 #include "backend/nativefiles/offerstore.h"
+#include "backend/nativefiles/jsontransport.h"
 #include "backend/identitymanager.h"
 #include "desk_files.h"
 
@@ -87,6 +88,21 @@ private slots:
         begin = op({{"op", "begin"}, {"path", "keep.txt"}, {"size", 0}, {"expected", "missing"}});
         QVERIFY(!begin["ok"].get<bool>()); QCOMPARE(read(root.filePath("keep.txt")), QByteArray("original"));
         QVERIFY(!op({{"op", "read"}, {"path", "keep.txt"}, {"offset", 0}, {"version", "stale"}})["ok"].get<bool>());
+    }
+    void nativeTransportUsesPinnedTls() {
+        QTemporaryDir root;
+        FileServer server(root.path()); QVERIFY(server.listen(QHostAddress::LocalHost));
+        NativeTransport transport;
+        transport.url = QUrl(QString("https://127.0.0.1:%1/desk/files").arg(server.serverPort()));
+        transport.identity = IdentityManager::get()->getSslConfig();
+        transport.peer = server.identity.localCertificate();
+        transport.timeoutMs = 3000;
+        QVERIFY(transport.call({{"op", "list"}, {"path", ""}})["ok"].toBool());
+        // No pin must fail before sending file metadata to the endpoint.
+        const auto requests = server.requests;
+        transport.peer = QSslCertificate();
+        QVERIFY(!transport.call({{"op", "list"}, {"path", ""}})["ok"].toBool());
+        QCOMPARE(server.requests, requests);
     }
     void nativeAdapterReadsOnDemand() {
         QTemporaryDir root,target;

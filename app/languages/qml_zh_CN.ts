@@ -583,6 +583,10 @@
         <source>Unable to open file transfer</source>
         <translation>无法打开文件传输窗口</translation>
     </message>
+        <message>
+            <source>Maintained by %1</source>
+            <translation>由 %1 维护</translation>
+        </message>
 </context>
     <context>
         <name>PendingPairingTask</name>
@@ -1661,6 +1665,14 @@
         <source>Enter the other computer's 9-digit device ID or IP address. Device IDs are looked up on the local network; the access password is entered next.</source>
         <translation>输入对方的 9 位设备识别码或 IP 地址。识别码将在局域网内查找，找到后再输入访问密码。</translation>
     </message>
+        <message>
+            <source>%1 · About</source>
+            <translation>%1 · 关于</translation>
+        </message>
+        <message>
+            <source>About Desk</source>
+            <translation>关于 Desk</translation>
+        </message>
 </context>
 <context>
     <name>HostView</name>
@@ -2205,4 +2217,62 @@
         <translation>选择文件，上传至右侧当前目录</translation>
     </message>
 </context>
+    <context>
+        <name>SystemProperties</name>
+        <message>
+            <source>The license could not be loaded.</source>
+            <translation>无法加载许可证。</translation>
+        </message>
+    </context>
+    <context>
+        <name>AboutDialog</name>
+        <message>
+            <source>Open-source license</source>
+            <translation>开源许可</translation>
+        </message>
+        <message>
+            <source>About Desk</source>
+            <translation>关于 Desk</translation>
+        </message>
+        <message>
+            <source>Version %1</source>
+            <translation>版本 %1</translation>
+        </message>
+        <message>
+            <source>Maintained by %1</source>
+            <translation>由 %1 维护</translation>
+        </message>
+        <message>
+            <source>Desk modifications © 2026 coderleex</source>
+            <translation>Desk 修改部分 © 2026 coderleex</translation>
+        </message>
+        <message>
+            <source>Based on %1 and %2.</source>
+            <translation>基于 %1 和 %2。</translation>
+        </message>
+        <message>
+            <source>Upstream copyrights remain with their respective authors.</source>
+            <translation>上游项目版权归各自作者所有。</translation>
+        </message>
+        <message>
+            <source>Licensed under GNU GPL v3. You may redistribute and modify this software under that license. Provided without warranty.</source>
+            <translation>本软件采用 GNU GPL v3 许可，可依该许可证再分发和修改。本软件不提供担保。</translation>
+        </message>
+        <message>
+            <source>Source code</source>
+            <translation>项目源码</translation>
+        </message>
+        <message>
+            <source>Back</source>
+            <translation>返回</translation>
+        </message>
+        <message>
+            <source>License</source>
+            <translation>开源许可</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>关闭</translation>
+        </message>
+    </context>
 </TS>

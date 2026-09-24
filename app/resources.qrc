@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="licenses/GPL-3.0.txt">../LICENSE</file>
         <file>gui/FileTransferWindow.qml</file>
         <file>gui/FileTransferPane.qml</file>
         <file>res/file-transfer.svg</file>

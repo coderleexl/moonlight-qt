@@ -1,0 +1,18 @@
+--- a/src/nvhttp.h
++++ b/src/nvhttp.h
+@@ -102,9 +102,13 @@
+     }
+ 
+     virtual ~SunshineHTTPS() {
+-      // Gracefully shutdown the TLS connection
++      // Best-effort close_notify: a disconnected or lingering client must not
++      // block the single HTTPS worker while we destroy its connection.
+       SimpleWeb::error_code ec;
+-      shutdown(ec);
++      lowest_layer().non_blocking(true, ec);
++      if (!ec) {
++        shutdown(ec);
++      }
+     }
+   };
+ 

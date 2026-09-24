@@ -583,6 +583,10 @@
         <source>Unable to open file transfer</source>
         <translation>無法打開檔案傳輸視窗</translation>
     </message>
+        <message>
+            <source>Maintained by %1</source>
+            <translation>由 %1 維護</translation>
+        </message>
 </context>
     <context>
         <name>PendingPairingTask</name>
@@ -1661,6 +1665,14 @@
         <source>Enter the other computer's 9-digit device ID or IP address. Device IDs are looked up on the local network; the access password is entered next.</source>
         <translation>輸入對方的 9 位裝置識別碼或 IP 位址。識別碼將在區域網路內尋找，找到後再輸入存取密碼。</translation>
     </message>
+        <message>
+            <source>%1 · About</source>
+            <translation>%1 · 關於</translation>
+        </message>
+        <message>
+            <source>About Desk</source>
+            <translation>關於 Desk</translation>
+        </message>
 </context>
 <context>
     <name>HostView</name>
@@ -2205,4 +2217,62 @@
         <translation>選擇檔案，上傳至右侧当前目錄</translation>
     </message>
 </context>
+    <context>
+        <name>SystemProperties</name>
+        <message>
+            <source>The license could not be loaded.</source>
+            <translation>無法載入授權條款。</translation>
+        </message>
+    </context>
+    <context>
+        <name>AboutDialog</name>
+        <message>
+            <source>Open-source license</source>
+            <translation>開源授權</translation>
+        </message>
+        <message>
+            <source>About Desk</source>
+            <translation>關於 Desk</translation>
+        </message>
+        <message>
+            <source>Version %1</source>
+            <translation>版本 %1</translation>
+        </message>
+        <message>
+            <source>Maintained by %1</source>
+            <translation>由 %1 維護</translation>
+        </message>
+        <message>
+            <source>Desk modifications © 2026 coderleex</source>
+            <translation>Desk 修改部分 © 2026 coderleex</translation>
+        </message>
+        <message>
+            <source>Based on %1 and %2.</source>
+            <translation>基於 %1 與 %2。</translation>
+        </message>
+        <message>
+            <source>Upstream copyrights remain with their respective authors.</source>
+            <translation>上游專案著作權歸各自作者所有。</translation>
+        </message>
+        <message>
+            <source>Licensed under GNU GPL v3. You may redistribute and modify this software under that license. Provided without warranty.</source>
+            <translation>本軟體採用 GNU GPL v3 授權，可依該授權條款再散布和修改。本軟體不提供擔保。</translation>
+        </message>
+        <message>
+            <source>Source code</source>
+            <translation>專案原始碼</translation>
+        </message>
+        <message>
+            <source>Back</source>
+            <translation>返回</translation>
+        </message>
+        <message>
+            <source>License</source>
+            <translation>開源授權</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>關閉</translation>
+        </message>
+    </context>
 </TS>

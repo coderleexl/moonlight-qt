@@ -5,6 +5,7 @@
 #include <QNetworkProxy>
 #include <QNetworkReply>
 #include <QPointer>
+#include <QDebug>
 #include <QTimer>
 void NativeTransport::send(QObject* lifetime, QJsonObject object, std::function<void(QJsonObject)> callback) const
 {
@@ -55,12 +56,15 @@ void NativeTransport::send(QObject* lifetime, QJsonObject object, std::function<
             auto result = QJsonDocument::fromJson(*buffer).object();
             if (reply->error() != QNetworkReply::NoError
                 || (url.scheme() == "https" && reply->sslConfiguration().peerCertificate() != pin)
-                || buffer->size() > 1024 * 1024 || !result.contains("ok"))
+                || buffer->size() > 1024 * 1024 || !result.contains("ok")) {
+                qWarning() << "File clipboard request failed:" << url.host()
+                    << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() << reply->errorString();
                 result = { { "ok", false },
                     { "error",
                         reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 404
                             ? "Update Desk on both computers to use file clipboard"
-                            : "Clipboard connection failed" } };
+                            : "Clipboard connection failed: " + reply->errorString() } };
+            }
             manager->deleteLater();
             callback(result);
         });

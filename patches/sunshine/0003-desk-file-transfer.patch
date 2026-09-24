@@ -36,7 +36,7 @@
 +          result = {{"ok", false}, {"error", "Invalid request"}};
 +        }
 +      }
-+      response->write(SimpleWeb::StatusCode::success_ok, result.dump(), {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
++      const auto body = result.dump(); response->write(SimpleWeb::StatusCode::success_ok, body, {{"Content-Length", std::to_string(body.size())}, {"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
 +    };
 +    https_server.config.max_request_streambuf_size = 1024 * 1024;
 +

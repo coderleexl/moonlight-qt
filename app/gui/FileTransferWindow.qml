@@ -7,8 +7,8 @@ ApplicationWindow {
     id: window
     objectName: "fileTransferWindow"
     visible: true
-    width: 1000
-    height: 660
+    width: minimumWidth
+    height: minimumHeight
     minimumWidth: 800
     minimumHeight: 580
     title: qsTr("File transfer") + " · " + hostName
@@ -73,7 +73,7 @@ ApplicationWindow {
         Label { textFormat: Text.PlainText; visible: transfer.error.length > 0; text: transfer.error; color: darkTheme ? "#FFAAAA" : "#B53838"; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 12 }
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 162
+            Layout.preferredHeight: Math.min(162, Math.max(90, window.height * 0.20))
             radius: 10
             color: window.cardColor
             border.color: window.borderColor

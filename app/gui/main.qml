@@ -113,15 +113,9 @@ ApplicationWindow {
         }
     }
 
-    Item {
-        id: tooltipScope
-        visible: false
-        ToolTip.toolTip.contentWidth: Math.min(tooltipText.implicitWidth, 400, window.width - 32)
-        Text {
-            id: tooltipText
-            text: tooltipScope.ToolTip.toolTip.text
-            font: tooltipScope.ToolTip.toolTip.font
-        }
+    ToolTipTheme {
+        darkTheme: window.darkTheme
+        maximumWidth: Math.min(400, window.width - 48)
     }
 
     function goBack() {

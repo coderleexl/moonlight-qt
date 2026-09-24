@@ -1,4 +1,5 @@
 <RCC><qresource prefix="/">
+<file alias="gui/ToolTipTheme.qml">../../app/gui/ToolTipTheme.qml</file>
 <file alias="gui/FileTransferWindow.qml">../../app/gui/FileTransferWindow.qml</file>
 <file alias="gui/FileTransferPane.qml">../../app/gui/FileTransferPane.qml</file>
 <file alias="gui/ActionButton.qml">../../app/gui/ActionButton.qml</file>

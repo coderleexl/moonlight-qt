@@ -23,6 +23,10 @@ ApplicationWindow {
     color: darkTheme ? "#171717" : "#F4F7FB"
     Material.theme: darkTheme ? Material.Dark : Material.Light
     Material.accent: accentColor
+    ToolTipTheme {
+        darkTheme: window.darkTheme
+        maximumWidth: Math.min(400, window.width - 48)
+    }
     onClosing: function(close) {
         if (transfer.busy) { close.accepted = false; hide(); }
         else Qt.quit();

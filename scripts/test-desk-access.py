@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
+import signal
 import socket
 import ssl
 import subprocess
@@ -285,33 +287,82 @@ def test_parent_death(helper):
                 if check(): return True
                 time.sleep(.1)
             return False
-        with (directory / 'process.log').open('w') as output:
-            owner = subprocess.Popen([sys.executable, '-c', wrapper, str(pidfile), str(helper), str(config)],
-                                     env=env, stdout=output, stderr=subprocess.STDOUT, cwd=helper.parent)
-            try:
-                assert wait_for(ready, 20), 'Managed host did not become ready'
-                owner.kill()  # SIGKILL / TerminateProcess: no orderly parent cleanup.
-                owner.wait(timeout=3)
-                assert wait_for(port_free, 8), 'Host became an orphan after its owner was killed'
-                # The same configuration and ports must work on the next launch.
-                next_host = subprocess.Popen([str(helper), str(config)], stdin=subprocess.PIPE,
-                                             env=env, stdout=output, stderr=subprocess.STDOUT, cwd=helper.parent)
+        # Encoder probing took 23 seconds on the Windows runner. Match run()'s
+        # startup allowance; keep the separate eight-second shutdown deadline.
+        startup_timeout = 60
+        child_pid = None
+        child_handle = None
+        kernel32 = None
+        if os.name == 'nt':
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+            kernel32.TerminateProcess.restype = wintypes.BOOL
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.CloseHandle.restype = wintypes.BOOL
+        assert port_free(), 'Lifecycle test port is already occupied'
+        try:
+            with (directory / 'process.log').open('w') as output:
+                owner = subprocess.Popen([sys.executable, '-c', wrapper, str(pidfile), str(helper), str(config)],
+                                         env=env, stdout=output, stderr=subprocess.STDOUT, cwd=helper.parent)
                 try:
-                    assert wait_for(ready, 20), 'Restart failed after parent crash'
-                    next_host.stdin.close()
-                    next_host.wait(timeout=8)
-                    assert port_free(), 'Normal pipe closure did not release host port'
+                    assert wait_for(lambda: pidfile.exists() and pidfile.stat().st_size > 0, 5), 'Owner did not report its child'
+                    child_pid = int(pidfile.read_text())
+                    if kernel32:
+                        # Retain the exact process object, even after the owner dies.
+                        # SYNCHRONIZE | PROCESS_TERMINATE: never terminate by image name.
+                        child_handle = kernel32.OpenProcess(0x00100001, False, child_pid)
+                        assert child_handle, 'Cannot observe the managed test host'
+                    assert wait_for(ready, startup_timeout), 'Managed host did not become ready'
+                    owner.kill()  # SIGKILL / TerminateProcess: no orderly parent cleanup.
+                    owner.wait(timeout=3)
+                    def stopped():
+                        return port_free() and (not child_handle or kernel32.WaitForSingleObject(child_handle, 0) == 0)
+                    assert wait_for(stopped, 8), 'Host became an orphan after its owner was killed'
+                    # The same configuration and ports must work on the next launch.
+                    next_host = subprocess.Popen([str(helper), str(config)], stdin=subprocess.PIPE,
+                                                 env=env, stdout=output, stderr=subprocess.STDOUT, cwd=helper.parent)
+                    try:
+                        assert wait_for(ready, startup_timeout), 'Restart failed after parent crash'
+                        next_host.stdin.close()
+                        next_host.wait(timeout=8)
+                        assert port_free(), 'Normal pipe closure did not release host port'
+                    finally:
+                        if next_host.poll() is None:
+                            next_host.kill(); next_host.wait(timeout=3)
+                        next_host.stdin.close()
                 finally:
-                    if next_host.poll() is None:
-                        next_host.kill(); next_host.wait(timeout=3)
-            finally:
-                if owner.poll() is None:
-                    owner.kill(); owner.wait(timeout=3)
-                # Only this test's known child may need cleanup on a failing build.
-                if not port_free() and pidfile.exists():
-                    import signal
-                    try: os.kill(int(pidfile.read_text()), signal.SIGTERM)
-                    except ProcessLookupError: pass
+                    # Readiness failures can leave a live child without a listening
+                    # port. Cleanup must not depend on whether that port is open.
+                    try:
+                        if kernel32:
+                            if child_handle:
+                                try:
+                                    if kernel32.WaitForSingleObject(child_handle, 0) == 258:  # WAIT_TIMEOUT
+                                        kernel32.TerminateProcess(child_handle, 1)
+                                    assert kernel32.WaitForSingleObject(child_handle, 8000) == 0, 'Test host did not stop during cleanup'
+                                finally:
+                                    kernel32.CloseHandle(child_handle)
+                        elif child_pid and (owner.poll() is None or not port_free()):
+                            # With the owner alive it retains/reaps this exact child.
+                            try: os.kill(child_pid, signal.SIGKILL)
+                            except ProcessLookupError: pass
+                    finally:
+                        if owner.poll() is None:
+                            owner.kill(); owner.wait(timeout=3)
+        finally:
+            # Preserve evidence before TemporaryDirectory cleanup, including failures
+            # before the HTTP listener starts. These files are uploaded by all jobs.
+            logs = Path(__file__).resolve().parent.parent / 'build' / 'preview-smoke'
+            logs.mkdir(parents=True, exist_ok=True)
+            for name in ('process.log', 'host.log'):
+                source = directory / name
+                if source.exists(): shutil.copyfile(source, logs / ('lifecycle-' + name))
         print('Managed host lifecycle passed: forced parent death, port release, restart, graceful stop.')
 
 

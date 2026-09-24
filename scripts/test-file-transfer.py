@@ -28,6 +28,10 @@ if sys.platform == 'darwin':
     env['DYLD_LIBRARY_PATH'] = str(root / 'libs/mac/lib')
 if os.name == 'nt':
     env['PATH'] = str(root / 'libs/windows/lib/x64') + os.pathsep + env['PATH']
+    # The offscreen plugin needs an explicit font directory on Windows.
+    fonts = Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'Fonts'
+    if fonts.is_dir():
+        env['QT_QPA_FONTDIR'] = str(fonts)
 program = build / ('file-transfer-test.exe' if os.name == 'nt' else 'file-transfer-test')
 result = subprocess.run([str(program), '-o', 'results.txt,txt'], cwd=build, env=env)
 print((build / 'results.txt').read_text(encoding='utf-8', errors='replace'), flush=True)

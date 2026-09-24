@@ -1,0 +1,36 @@
+--- a/src/desk_files.h
++++ b/src/desk_files.h
+@@ -87,13 +87,20 @@
+     fs::path resolve(const std::string &name) const {
+       if (name.size() > 4096 || name.find('\0') != std::string::npos || name.find('\\') != std::string::npos || name.find(':') != std::string::npos) throw std::runtime_error("Invalid path");
+       auto relative = fs::u8path(name);
+-      if (relative.is_absolute() || relative.has_root_name()) throw std::runtime_error("Invalid path");
++      if (relative.has_root_path()) throw std::runtime_error("Invalid path");
+       auto p = root;
+       for (const auto &part : relative) {
+         const auto s = path_utf8(part);
+-        if (s == ".." || s == "." || s == ".desk-transfers" || s.empty() || s.back() == '.' || s.back() == ' ') throw std::runtime_error("Invalid path");
+-#ifdef _WIN32
+-        auto stem = part.stem().string();
++        auto folded = s;
++        std::transform(folded.begin(), folded.end(), folded.begin(), [](unsigned char c) {
++          return char(c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c);
++        });
++        if (s == ".." || s == "." || folded == ".desk-transfers" || s.empty() || s.back() == '.' || s.back() == ' ') throw std::runtime_error("Invalid path");
++#ifdef _WIN32
++        // Keep UTF-8 throughout validation; path::string() uses the Windows ANSI
++        // code page and can reject valid Unicode names. Device names use the
++        // portion before the first dot, even when there are multiple extensions.
++        auto stem = s.substr(0, s.find('.'));
+         std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c) { return char(std::toupper(c)); });
+         if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || (stem.size() == 4 && (stem.substr(0, 3) == "COM" || stem.substr(0, 3) == "LPT") && stem[3] >= '1' && stem[3] <= '9')) throw std::runtime_error("Invalid path");
+ #endif
+@@ -125,7 +132,7 @@
+ #endif
+       // Clean only this service's old partial files, never user documents.
+       for (const auto &e : fs::directory_iterator(staging)) {
+-        const auto n = e.path().filename().string();
++        const auto n = path_utf8(e.path().filename());
+         if (n.size() == 69 && n.substr(64) == ".part" && n.substr(0, 64).find_first_not_of("0123456789abcdef") == std::string::npos) {
+           std::error_code ec;
+           fs::remove(e.path(), ec);

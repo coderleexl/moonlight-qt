@@ -72,7 +72,14 @@ private slots:
         QTemporaryDir root, outside;
         desk_files::Service service(std::filesystem::u8path(root.path().toStdString()));
         auto op = [&](desk_files::json q) { return service.execute(q); };
-        for (const auto& p : {"../escape", "/etc/passwd", "C:/Windows", "dir/../../escape", ".desk-transfers/secret", "x\\y", "file:stream"}) QVERIFY(!op({{"op", "stat"}, {"path", p}})["ok"].get<bool>());
+        for (const auto& p : {"../escape", "/etc/passwd", "/", "C:/Windows", "C:relative", "dir/../../escape", ".desk-transfers/secret", ".DESK-TRANSFERS/secret", "x\\y", "file:stream"}) {
+            const auto result = op({{"op", "stat"}, {"path", p}});
+            QVERIFY2(!result["ok"].get<bool>(), p);
+        }
+#ifdef Q_OS_WIN
+        for (const auto& p : {"CON", "nul.txt", "NUL.backup.txt", "COM1.log", "Lpt9.backup.txt"})
+            QVERIFY2(!op({{"op", "stat"}, {"path", p}})["ok"].get<bool>(), p);
+#endif
         std::error_code ec;
         std::filesystem::create_directory_symlink(std::filesystem::u8path(outside.path().toStdString()), std::filesystem::u8path((root.path()+"/link").toStdString()), ec);
         if (!ec) QVERIFY(!op({{"op", "stat"}, {"path", "link/file"}})["ok"].get<bool>());
@@ -139,7 +146,7 @@ private slots:
         QDir(local.path()).mkdir("folder"); QDir(local.filePath("folder")).mkdir("empty-dir"); write(local.filePath("folder/zero"), ""); write(local.filePath("folder/nested.txt"), "nested"); write(local.filePath("folder/.hidden"), "hidden");
         client.enqueue(true, {QString::fromUtf8("中文 空格.bin"), "folder"});
         QTRY_VERIFY_WITH_TIMEOUT(!client.busy(), 20000);
-        for (auto j : client.jobs()) QCOMPARE(j.toMap()["state"].toString(), QString("done"));
+        for (auto j : client.jobs()) QVERIFY2(j.toMap()["state"].toString() == "done", qPrintable(j.toMap()["detail"].toString()));
         QCOMPARE(read(remote.filePath(QString::fromUtf8("中文 空格.bin"))), data);
         QCOMPARE(read(remote.filePath("folder/nested.txt")), QByteArray("nested"));
         QVERIFY(QDir(remote.filePath("folder/empty-dir")).exists());

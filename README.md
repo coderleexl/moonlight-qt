@@ -74,6 +74,8 @@ Windows 安装包未签名，macOS 使用临时签名且未进行 Apple 公证�
 
 发布版本取自 `app/version.txt`。发布新版本前先递增版本号；已发布标签不会被移动，已公开安装包不会被覆盖。同一提交的重试会校验已发布内容。也可以推送与版本号一致的 `desk-v*` 标签，自动触发同一流程。关闭 `publish` 则只在 Actions Artifacts 中保留测试包。
 
+Windows 的 Sunshine C/C++ 编译使用 `ccache`，缓存按架构与 MSYS2 工具链版本隔离，单份缓存上限为 1 GB。首次构建建立缓存；后续构建复用未变化文件的编译结果，源码、头文件、编译器或参数变化会触发重新编译。缓存不包含安装包，链接、打包和测试仍会执行。Sunshine 编译完成后立即保存缓存，后续测试失败不影响复用；Actions 的 Summary 和诊断日志会显示本轮命中率。Desk 客户端暂未接入编译缓存。
+
 工作流统一使用 `.github/workflows/build-desk.yml`，涵盖上述四个平台的构建、测试与发布。旧上游的客户端、AppImage 和 Steam Link 工作流已移除。自动发布完全运行在 GitHub Actions 内，无需本机脚本、个人访问令牌或保持电脑在线。
 
 ### 内置 Sunshine 与局域网连接

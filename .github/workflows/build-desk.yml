@@ -120,17 +120,55 @@ jobs:
           update: true
           install: >-
             git mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-ccache mingw-w64-ucrt-x86_64-boost
             mingw-w64-ucrt-x86_64-cppwinrt mingw-w64-ucrt-x86_64-curl-winssl
             mingw-w64-ucrt-x86_64-miniupnpc mingw-w64-ucrt-x86_64-nlohmann-json
             mingw-w64-ucrt-x86_64-onevpl mingw-w64-ucrt-x86_64-openssl
             mingw-w64-ucrt-x86_64-opus mingw-w64-ucrt-x86_64-MinHook
+      - name: Identify Windows host toolchain
+        if: runner.os == 'Windows'
+        id: windows-host-toolchain
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          # MSYS2 is updated on each runner. Separate caches when any package changes.
+          fingerprint=$(pacman -Q | LC_ALL=C sort | sha256sum | cut -d ' ' -f 1)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+      - name: Restore Windows Sunshine compiler cache
+        if: runner.os == 'Windows'
+        id: windows-host-cache
+        uses: actions/cache/restore@v5
+        continue-on-error: true
+        with:
+          path: build/ccache-sunshine
+          key: windows-sunshine-ccache-v1-${{ matrix.arch }}-${{ steps.windows-host-toolchain.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            windows-sunshine-ccache-v1-${{ matrix.arch }}-${{ steps.windows-host-toolchain.outputs.fingerprint }}-
       - name: Build Windows Sunshine
         if: runner.os == 'Windows'
+        id: windows-host-build
         shell: msys2 {0}
         env:
           MSYS2_PATH_TYPE: inherit
+          DESK_USE_CCACHE: '1'
         run: bash scripts/build-sunshine-windows.sh
+      - name: Save Windows Sunshine compiler cache
+        if: runner.os == 'Windows'
+        uses: actions/cache/save@v5
+        continue-on-error: true
+        with:
+          path: build/ccache-sunshine
+          key: ${{ steps.windows-host-cache.outputs.cache-primary-key }}
+      - name: Report Windows compiler cache statistics
+        if: ${{ !cancelled() && runner.os == 'Windows' && (steps.windows-host-build.outcome == 'success' || steps.windows-host-build.outcome == 'failure') }}
+        shell: pwsh
+        run: |
+          if (Test-Path build/sunshine-ccache-stats.txt) {
+            '### Sunshine compiler cache' | Out-File -Append $env:GITHUB_STEP_SUMMARY
+            '```text' | Out-File -Append $env:GITHUB_STEP_SUMMARY
+            Get-Content build/sunshine-ccache-stats.txt | Out-File -Append $env:GITHUB_STEP_SUMMARY
+            '```' | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          }
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
         with:
@@ -219,6 +257,7 @@ jobs:
           name: Logs-${{ matrix.package }}
           path: |
             build/host-manager-test/results.txt
+            build/sunshine-ccache-stats.txt
             build/preview-smoke/*.txt
             build/preview-smoke/*.log
             build/desk-smoke/*.txt

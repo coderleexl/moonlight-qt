@@ -4,7 +4,28 @@ export BRANCH=bundled
 bash scripts/apply-sunshine-patches.sh
 export BUILD_VERSION="$(git -C third_party/sunshine describe --tags --exact-match)"
 export COMMIT="$(git -C third_party/sunshine rev-parse HEAD)"
-cmake -S third_party/sunshine -B build/sunshine-windows -G Ninja \
+# Cache compiler outputs only. Always configure, link, install and test this checkout.
+# Explicit empty launchers also disable a previous cached configuration for local builds.
+cache_launcher=()
+if [[ "${DESK_USE_CCACHE:-0}" == 1 ]]; then
+  command -v ccache >/dev/null
+  mkdir -p build/ccache-sunshine
+  export CCACHE_DIR="$(cygpath -am "$PWD/build/ccache-sunshine")"
+  export CCACHE_BASEDIR="$(cygpath -am "$PWD")"
+  export CCACHE_COMPILERCHECK=content
+  export CCACHE_MAXSIZE=1G
+  export CCACHE_NAMESPACE=desk-sunshine-windows-release-v1
+  ccache --zero-stats
+  cache_launcher=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+  report_cache_stats() {
+    ccache --show-stats --verbose > build/sunshine-ccache-stats.txt || true
+    cat build/sunshine-ccache-stats.txt
+  }
+  trap report_cache_stats EXIT
+else
+  cache_launcher=(-DCMAKE_C_COMPILER_LAUNCHER= -DCMAKE_CXX_COMPILER_LAUNCHER=)
+fi
+cmake -S third_party/sunshine -B build/sunshine-windows -G Ninja "${cache_launcher[@]}" \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF \
   -DSUNSHINE_ENABLE_TRAY=OFF -DSUNSHINE_USE_STATIC_QT=OFF \
   -DSUNSHINE_ASSETS_DIR=assets \

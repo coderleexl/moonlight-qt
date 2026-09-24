@@ -190,8 +190,17 @@ class MacFiles final : public NativeFilePlatform {
             self->processing.insert(path);
             removexattr(encodedPath.constData(), attribute, XATTR_NOFOLLOW);
             auto name = root["path"].toString();
+            QPointer<MacFiles> guard(self);
             [[NSOperationQueue new] addOperationWithBlock:^{
                 auto error = materializeNative(s->manifest, s->reader(), name, path);
+                if (guard)
+                    QMetaObject::invokeMethod(
+                        guard,
+                        [guard, path] {
+                            if (guard)
+                                guard->processing.remove(path);
+                        },
+                        Qt::QueuedConnection);
                 if (!error.isEmpty() && s->platform)
                     emit s->platform->error(error);
             }];

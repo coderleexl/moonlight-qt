@@ -1985,7 +1985,8 @@ void Session::exec()
     SDL_Event event;
     for (;;) {
         if (toolbar.available() && SDL_GetTicks() - lastToolbarUpdate >= 100) {
-            toolbar.sync(m_InputHandler->absoluteMouseMode(), SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN);
+            toolbar.sync(m_InputHandler->absoluteMouseMode(), SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN,
+                         m_InputHandler->isCaptureActive());
             lastToolbarUpdate = SDL_GetTicks();
         }
 #if SDL_VERSION_ATLEAST(2, 0, 18) && !defined(STEAM_LINK)
@@ -2025,12 +2026,22 @@ void Session::exec()
             case StreamToolbar::Action::ReleaseInput:
                 m_InputHandler->releaseAllInputs();
                 m_InputHandler->setCaptureActive(false);
+                needsFirstEnterCapture = false;
+                needsPostDecoderCreationCapture = false;
+                toolbar.inputReleased();
                 break;
             case StreamToolbar::Action::ResumeInput:
                 m_InputHandler->setCaptureActive(true);
                 break;
             case StreamToolbar::Action::ToggleMouseMode:
+                // Choosing game mode must not immediately lock the pointer away
+                // from these controls. Resume only when the user returns to video.
+                m_InputHandler->releaseAllInputs();
+                m_InputHandler->setCaptureActive(false);
+                needsFirstEnterCapture = false;
+                needsPostDecoderCreationCapture = false;
                 m_InputHandler->setAbsoluteMouseMode(!m_InputHandler->absoluteMouseMode());
+                toolbar.inputReleased();
                 break;
             case StreamToolbar::Action::ToggleFullscreen:
                 m_InputHandler->releaseAllInputs();
@@ -2054,7 +2065,8 @@ void Session::exec()
             default:
                 break;
             }
-            toolbar.sync(m_InputHandler->absoluteMouseMode(), SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN);
+            toolbar.sync(m_InputHandler->absoluteMouseMode(), SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN,
+                         m_InputHandler->isCaptureActive());
             continue;
         }
         switch (event.type) {

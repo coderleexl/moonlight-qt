@@ -1936,6 +1936,10 @@
     <context>
         <name>StreamToolbar</name>
         <message>
+            <source>Toolbar: Ctrl+Alt+Shift+T</source>
+            <translation>工具列：Ctrl+Alt+Shift+T</translation>
+        </message>
+        <message>
             <source>Session controls</source>
             <translation>串流控制</translation>
         </message>

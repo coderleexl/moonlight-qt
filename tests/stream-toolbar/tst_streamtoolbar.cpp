@@ -84,6 +84,30 @@ private slots:
             QCOMPARE(toolbar.handleEvent(remoteClick), StreamToolbar::Action::ResumeInput);
             QVERIFY(!toolbar.expanded());
 
+            // A captured game pointer cannot click an already expanded panel.
+            // The rescue shortcut must release input and keep it open, not close it.
+            key(SDLK_t, combo);
+            toolbar.sync(false, false, true);
+            SDL_Event rescue = {};
+            rescue.type = SDL_KEYDOWN;
+            rescue.key.windowID = SDL_GetWindowID(stream);
+            rescue.key.keysym.sym = SDLK_t;
+            rescue.key.keysym.scancode = SDL_SCANCODE_T;
+            rescue.key.keysym.mod = combo;
+            QCOMPARE(toolbar.handleEvent(rescue), StreamToolbar::Action::ReleaseInput);
+            QVERIFY(toolbar.expanded());
+            toolbar.inputReleased();
+            toolbar.sync(false, false, false);
+            QCOMPARE(click(0), StreamToolbar::Action::ToggleMouseMode);
+            QVERIFY(toolbar.expanded());
+            QCOMPARE(key(SDLK_t, combo), StreamToolbar::Action::ResumeInput);
+            QVERIFY(!toolbar.expanded());
+            int gameTabWidth, tabHeight, desktopTabWidth;
+            SDL_GetWindowSize(panel, &gameTabWidth, &tabHeight);
+            toolbar.sync(true, false, false);
+            SDL_GetWindowSize(panel, &desktopTabWidth, &tabHeight);
+            QVERIFY(gameTabWidth > desktopTabWidth); // Room for the visible rescue shortcut.
+
             // Repaint and operate the controls after an idle period with no
             // incoming video, network events, Qt event processing, or renderer.
             key(SDLK_t, combo);

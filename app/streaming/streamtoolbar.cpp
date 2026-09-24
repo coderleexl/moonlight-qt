@@ -20,6 +20,7 @@ QString tr(const char* text)
 constexpr int ExpandedWidth = 584;
 constexpr int ExpandedHeight = 44;
 constexpr int CollapsedHeight = 20;
+constexpr int GameTabWidth = 244;
 
 struct RestoreGlContext {
     SDL_Window* window = SDL_GL_GetCurrentWindow();
@@ -79,11 +80,18 @@ void StreamToolbar::setExpanded(bool expanded)
 #ifndef Q_OS_DARWIN
     if (m_Window) SDL_SetWindowOpacity(m_Window, m_Expanded ? 0.88f : 0.80f);
 #endif
-    sync(m_AbsoluteMouse, m_Fullscreen);
+    sync(m_AbsoluteMouse, m_Fullscreen, m_InputCaptured);
     paint();
 }
 
-void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
+void StreamToolbar::inputReleased()
+{
+    m_InputCaptured = false;
+    // Raise only after SDL has released relative mode and the keyboard grab.
+    if (m_Window && m_Expanded) SDL_RaiseWindow(m_Window);
+}
+
+void StreamToolbar::sync(bool absoluteMouse, bool fullscreen, bool inputCaptured)
 {
     if (!m_Window) {
         return;
@@ -91,6 +99,7 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
     bool repaint = m_AbsoluteMouse != absoluteMouse || m_Fullscreen != fullscreen;
     m_AbsoluteMouse = absoluteMouse;
     m_Fullscreen = fullscreen;
+    m_InputCaptured = inputCaptured;
     SDL_Window* focus = SDL_GetKeyboardFocus();
 
     int x, y, w, h;
@@ -105,7 +114,7 @@ void StreamToolbar::sync(bool absoluteMouse, bool fullscreen)
         scale = screens[display]->devicePixelRatio();
     }
 #endif
-    m_Width = m_Expanded ? ExpandedWidth : 48;
+    m_Width = m_Expanded ? ExpandedWidth : (m_AbsoluteMouse ? 48 : GameTabWidth);
     m_Scale = qMin(scale, float(w) / float(m_Width + 16));
     int desiredW = qMax(1, qRound(m_Width * m_Scale));
     int desiredH = qMax(1, qRound((m_Expanded ? ExpandedHeight : CollapsedHeight) * m_Scale));
@@ -198,7 +207,8 @@ StreamToolbar::Action StreamToolbar::handleEvent(const SDL_Event& event)
         (event.key.keysym.mod & KMOD_CTRL) && (event.key.keysym.mod & KMOD_ALT) &&
         (event.key.keysym.mod & KMOD_SHIFT) &&
         (event.key.keysym.sym == SDLK_t || event.key.keysym.scancode == SDL_SCANCODE_T)) {
-        setExpanded(!m_Expanded);
+        // Captured input always needs a way back, even if the panel is already open.
+        setExpanded(m_InputCaptured || !m_Expanded);
         SDL_RaiseWindow(m_Expanded ? m_Window : m_StreamWindow);
         return m_Expanded ? Action::ReleaseInput : Action::ResumeInput;
     }
@@ -344,7 +354,16 @@ void StreamToolbar::paint()
         p.drawPath(path);
     };
     if (!m_Expanded) {
-        chevron(m_Width / 2, height / 2, false);
+        if (m_AbsoluteMouse) {
+            chevron(m_Width / 2, height / 2, false);
+        }
+        else {
+            p.setPen(fg);
+            const QRect textRect(10, 0, m_Width - 36, height);
+            p.drawText(textRect, Qt::AlignCenter,
+                       p.fontMetrics().elidedText(tr("Toolbar: Ctrl+Alt+Shift+T"), Qt::ElideRight, textRect.width()));
+            chevron(m_Width - 16, height / 2, false);
+        }
     }
     else {
         const QString labels[] = {m_AbsoluteMouse ? tr("Mouse: Desktop") : tr("Mouse: Game"),

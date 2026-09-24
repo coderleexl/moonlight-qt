@@ -1,4 +1,5 @@
-#pragma once
+#ifndef STREAMTOOLBAR_H
+#define STREAMTOOLBAR_H
 
 #include "SDL_compat.h"
 #include <QRect>
@@ -15,7 +16,8 @@ public:
     void close();
     bool available() const { return m_Window != nullptr; }
     bool expanded() const { return m_Expanded; }
-    void sync(bool absoluteMouse, bool fullscreen);
+    void sync(bool absoluteMouse, bool fullscreen, bool inputCaptured = false);
+    void inputReleased();
     Action handleEvent(const SDL_Event& event);
 
 private:
@@ -30,6 +32,7 @@ private:
     bool m_Expanded = false;
     bool m_AbsoluteMouse = true;
     bool m_Fullscreen = false;
+    bool m_InputCaptured = false;
     int m_Hover = -1;
     int m_Pressed = -1;
     int m_KeyboardButton = -1;
@@ -37,3 +40,5 @@ private:
     Uint32 m_LastActiveTime = 0;
     float m_Scale = 1;
 };
+
+#endif // STREAMTOOLBAR_H

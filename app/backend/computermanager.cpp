@@ -1,4 +1,5 @@
 #include "computermanager.h"
+#include "localhostidentity.h"
 #include "boxartmanager.h"
 #include "nvhttp.h"
 #include "nvpairingmanager.h"
@@ -506,6 +507,16 @@ QVector<NvComputer*> ComputerManager::getComputers()
 
     // Return a sorted host list
     auto hosts = QVector<NvComputer*>::fromList(m_KnownHosts.values());
+#ifdef MOONLIGHT_HOST_PREVIEW
+    // Previously saved self-discovery entries belong on the This Computer page.
+    const auto localId = DeskLocalHost::deviceId();
+    hosts.erase(std::remove_if(hosts.begin(), hosts.end(), [&localId](const NvComputer* host) {
+        QReadLocker hostLock(&host->lock);
+        return DeskLocalHost::matchesDeviceId(host->deskDeviceId, localId)
+            || (host->deskDeviceId.isEmpty() && host->manualAddress.isNull()
+                && DeskLocalHost::isLocalAddress(host->localAddress.address()));
+    }), hosts.end());
+#endif
     std::stable_sort(hosts.begin(), hosts.end(), [](const NvComputer* host1, const NvComputer* host2) {
         return host1->name.toLower() < host2->name.toLower();
     });
@@ -893,6 +904,13 @@ private:
 
         // Create initial newComputer using HTTP serverinfo with no pinned cert
         NvComputer* newComputer = new NvComputer(http, serverInfo);
+#ifdef MOONLIGHT_HOST_PREVIEW
+        if (DeskLocalHost::matchesDeviceId(newComputer->deskDeviceId, DeskLocalHost::deviceId())) {
+            delete newComputer;
+            if (!m_Mdns) emit computerAddCompleted(false, false);
+            return;
+        }
+#endif
         http.setTrueUid(!newComputer->isNvidiaServerSoftware);
 
         // Check if we have a record of this host UUID to pull the pinned cert
@@ -1036,6 +1054,10 @@ private:
 
 void ComputerManager::addNewHost(NvAddress address, bool mdns, QString name, NvAddress mdnsIpv6Address)
 {
+#ifdef MOONLIGHT_HOST_PREVIEW
+    // mDNS advertises our own host too. Avoid probing/pairing the local endpoint.
+    if (mdns && DeskLocalHost::isLocalAddress(address.address())) return;
+#endif
     // Punt to a worker thread to avoid stalling the
     // UI while waiting for serverinfo query to complete
     PendingAddTask* addTask = new PendingAddTask(this, name, address, mdnsIpv6Address, mdns);

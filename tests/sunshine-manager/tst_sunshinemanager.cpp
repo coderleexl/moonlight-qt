@@ -1,5 +1,7 @@
 #include "sunshinemanager.h"
 #include "deskaccess.h"
+#include "localhostidentity.h"
+#include "../../third_party/sunshine/src/desk_lifecycle.h"
 #include <QJsonObject>
 #include <QCoreApplication>
 #include <QDir>
@@ -27,6 +29,9 @@ static int fakeHost(QCoreApplication& app)
     QFile config(args.first());
     if (!config.open(QIODevice::ReadOnly)) return 20;
     const auto content = config.readAll();
+    desk_lifecycle::watch_parent([stuck = content.contains("test_stuck_shutdown")] {
+        if (!stuck) QMetaObject::invokeMethod(QCoreApplication::instance(), "quit", Qt::QueuedConnection);
+    });
     QFile record(QFileInfo(config).dir().filePath("test-arguments.json"));
     if (!record.open(QIODevice::WriteOnly)) return 21;
     record.write(QJsonDocument(QJsonArray::fromStringList(args)).toJson());
@@ -34,6 +39,7 @@ static int fakeHost(QCoreApplication& app)
     QFile access(QFileInfo(config).dir().filePath("desk-access.json"));
     if (!access.open(QIODevice::ReadOnly)) return 23;
     const auto credentials = QJsonDocument::fromJson(access.readAll()).object();
+    if (qEnvironmentVariable("DESK_MANAGED_HOST") != "1") return 27;
     const auto password = qEnvironmentVariable("DESK_ACCESS_PASSWORD");
     if (!DeskAccess::validPassword(password) || password != credentials.value("password").toString()) return 24;
     if (qEnvironmentVariable("DESK_DEVICE_ID") != credentials.value("deviceId").toString()) return 25;
@@ -88,6 +94,20 @@ private slots:
     void cleanupTestCase()
     {
         if (!m_Helper.isEmpty()) QFile::remove(m_Helper);
+    }
+    void excludesLocalDiscoveryWithoutConfusingRemoteHosts()
+    {
+        QVERIFY(DeskLocalHost::isLocalAddress("127.0.0.1"));
+        QVERIFY(DeskLocalHost::isLocalAddress("::1"));
+        QVERIFY(!DeskLocalHost::isLocalAddress("example.invalid"));
+        QVERIFY(!DeskLocalHost::isLocalAddress("192.0.2.123"));
+        for (const auto& address : QNetworkInterface::allAddresses())
+            QVERIFY(DeskLocalHost::isLocalAddress(address.toString()));
+        SunshineManager local;
+        QCOMPARE(DeskLocalHost::deviceId(), local.deviceId());
+        QVERIFY(DeskLocalHost::matchesDeviceId(local.deviceId(), DeskLocalHost::deviceId()));
+        QVERIFY(!DeskLocalHost::matchesDeviceId("", ""));
+        QVERIFY(!DeskLocalHost::matchesDeviceId("different", DeskLocalHost::deviceId()));
     }
     void missingHelper()
     {
@@ -235,6 +255,27 @@ private slots:
         manager.start();
         QTRY_COMPARE_WITH_TIMEOUT(manager.state(), SunshineManager::Failed, 5000);
         QVERIFY(manager.error().contains("42"));
+    }
+    void stuckHostStillExitsWhenOwnerPipeCloses()
+    {
+        writeConfig("# test_stuck_shutdown\n");
+        SunshineManager manager;
+        QProcess child;
+        auto env = QProcessEnvironment::systemEnvironment();
+        env.insert("DESK_MANAGED_HOST", "1");
+        env.insert("DESK_DEVICE_ID", manager.deviceId());
+        env.insert("DESK_ACCESS_PASSWORD", manager.accessPassword());
+        child.setProcessEnvironment(env);
+        child.start(m_Helper, {m_ConfigDir + "/sunshine.conf"});
+        QVERIFY(child.waitForStarted(3000));
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(m_ConfigDir + "/test-arguments.json"), 3000);
+        child.closeWriteChannel();
+        QVERIFY(!child.waitForFinished(1000));
+        QVERIFY(child.waitForFinished(7000));
+        QCOMPARE(child.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(child.exitCode(), 0);
+        QTcpServer listener;
+        QVERIFY(listener.listen(QHostAddress::LocalHost, testWebPort()));
     }
     void destructorStopsOwnedProcess()
     {

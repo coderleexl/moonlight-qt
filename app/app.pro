@@ -250,6 +250,7 @@ HEADERS += \
     streaming/streamutils.h \
     backend/autoupdatechecker.h \
     backend/sunshinemanager.h \
+    backend/localhostidentity.h \
     backend/filetransfer.h \
     backend/deskaccess.h \
     path.h \

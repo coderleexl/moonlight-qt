@@ -247,6 +247,76 @@ def run(helper, secret):
     print('Desk password tests passed: discovery metadata, wrong/right password, saved authorization, cancellation, attempt limit.')
 
 
+def test_parent_death(helper):
+    """Kill an owning process without destructors; its host must release ports."""
+    with tempfile.TemporaryDirectory(prefix='desk-lifecycle-ci-') as temp:
+        directory = Path(temp)
+        base = 59589
+        (directory / 'credentials').mkdir()
+        (directory / 'apps.json').write_text('{"apps": [{"name": "Desktop"}]}')
+        settings = dict(port=base, bind_address='127.0.0.1', address_family='ipv4',
+                        upnp='disabled', file_apps=directory / 'apps.json',
+                        pkey=directory / 'credentials/key.pem', cert=directory / 'credentials/cert.pem',
+                        file_state=directory / 'state.json', credentials_file=directory / 'state.json',
+                        log_path=directory / 'host.log')
+        config = directory / 'sunshine.conf'
+        config.write_text(''.join(f'{key} = {value}\n' for key, value in settings.items()))
+        pidfile = directory / 'child.pid'
+        env = dict(os.environ, DESK_MANAGED_HOST='1')
+        wrapper = ('import pathlib,subprocess,sys; '
+                   'child=subprocess.Popen(sys.argv[2:],stdin=subprocess.PIPE); '
+                   'pathlib.Path(sys.argv[1]).write_text(str(child.pid)); child.wait()')
+        def ready():
+            try:
+                opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                with opener.open(f'http://127.0.0.1:{base}/serverinfo', timeout=.5) as response:
+                    return response.status == 200
+            except Exception:
+                return False
+        def port_free():
+            try:
+                with socket.create_connection(('127.0.0.1', base), timeout=.2):
+                    return False
+            except OSError:
+                return True
+        def wait_for(check, timeout):
+            end = time.monotonic() + timeout
+            while time.monotonic() < end:
+                if check(): return True
+                time.sleep(.1)
+            return False
+        with (directory / 'process.log').open('w') as output:
+            owner = subprocess.Popen([sys.executable, '-c', wrapper, str(pidfile), str(helper), str(config)],
+                                     env=env, stdout=output, stderr=subprocess.STDOUT, cwd=helper.parent)
+            try:
+                assert wait_for(ready, 20), 'Managed host did not become ready'
+                owner.kill()  # SIGKILL / TerminateProcess: no orderly parent cleanup.
+                owner.wait(timeout=3)
+                assert wait_for(port_free, 8), 'Host became an orphan after its owner was killed'
+                # The same configuration and ports must work on the next launch.
+                next_host = subprocess.Popen([str(helper), str(config)], stdin=subprocess.PIPE,
+                                             env=env, stdout=output, stderr=subprocess.STDOUT, cwd=helper.parent)
+                try:
+                    assert wait_for(ready, 20), 'Restart failed after parent crash'
+                    next_host.stdin.close()
+                    next_host.wait(timeout=8)
+                    assert port_free(), 'Normal pipe closure did not release host port'
+                finally:
+                    if next_host.poll() is None:
+                        next_host.kill(); next_host.wait(timeout=3)
+            finally:
+                if owner.poll() is None:
+                    owner.kill(); owner.wait(timeout=3)
+                # Only this test's known child may need cleanup on a failing build.
+                if not port_free() and pidfile.exists():
+                    import signal
+                    try: os.kill(int(pidfile.read_text()), signal.SIGTERM)
+                    except ProcessLookupError: pass
+        print('Managed host lifecycle passed: forced parent death, port release, restart, graceful stop.')
+
+
 if __name__ == '__main__':
     for secret in ('654321', 'Desk-Office!42', secrets.token_urlsafe(16)):
         run(Path(sys.argv[1]).resolve(), secret)
+
+    test_parent_death(Path(sys.argv[1]).resolve())

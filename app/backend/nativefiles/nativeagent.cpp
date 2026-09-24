@@ -21,6 +21,8 @@
 #include <QTimer>
 #include <QUuid>
 #include <cstdio>
+#include <cstdlib>
+#include <chrono>
 #include <thread>
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -126,6 +128,9 @@ int NativeAgent::run(const QStringList& args)
         while (std::getchar() != EOF) { }
         qInfo() << "File clipboard helper stopping: parent channel closed";
         QMetaObject::invokeMethod(QCoreApplication::instance(), "quit", Qt::QueuedConnection);
+        // Parent death must also stop a helper whose GUI/network loop is stuck.
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::_Exit(EXIT_SUCCESS);
     }).detach();
     const auto parent = args[2].toLongLong();
     if (parent <= 0)

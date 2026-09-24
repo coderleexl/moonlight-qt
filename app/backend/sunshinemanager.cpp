@@ -80,7 +80,7 @@ SunshineManager::SunshineManager(QObject* parent) : QObject(parent)
     connect(&m_StartTimeout, &QTimer::timeout, this, [this] {
         setState(Failed, tr("Sunshine did not become ready. Check permissions and the log, then retry."));
         m_HealthTimer.stop();
-        m_Process.terminate();
+        m_Process.closeWriteChannel();
         m_StopTimeout.start();
     });
     connect(&m_StopTimeout, &QTimer::timeout, this, [this] {
@@ -93,7 +93,7 @@ SunshineManager::~SunshineManager()
 {
     NativeAgent::stop(m_ClipboardProcess);
     if (m_Process.state() != QProcess::NotRunning) {
-        m_Process.terminate();
+        m_Process.closeWriteChannel();
         if (!m_Process.waitForFinished(3000)) {
             m_Process.kill();
             m_Process.waitForFinished(1000);
@@ -313,6 +313,7 @@ void SunshineManager::start()
     m_Process.setWorkingDirectory(QFileInfo(executablePath()).absolutePath());
     m_Process.setProgram(executablePath());
     auto environment = QProcessEnvironment::systemEnvironment();
+    environment.insert("DESK_MANAGED_HOST", "1");
     environment.insert("DESK_DEVICE_ID", m_DeviceId);
     environment.insert("DESK_ACCESS_PASSWORD", m_AccessPassword);
     environment.insert("DESK_FILE_ROOT", QString::fromLatin1(sharedDirectory().toUtf8().toBase64()));
@@ -347,7 +348,7 @@ void SunshineManager::stop()
     m_StartTimeout.stop();
     m_Probe.abort();
     setState(Stopping);
-    m_Process.terminate();
+    m_Process.closeWriteChannel();
     m_StopTimeout.start();
 }
 

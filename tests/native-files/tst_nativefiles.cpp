@@ -57,7 +57,9 @@ private slots:
         auto path = QDir(NativeActivity::directory()).filePath(paths.first());
         write(path + ".cancel",
             QJsonDocument(QJsonObject { { "session", snapshot()["session"] }, { "id", id } }).toJson());
-        QTest::qWait(250);
+        // Wait for observable cancellation; macOS may coalesce the 200 ms timer.
+        QTRY_COMPARE_WITH_TIMEOUT(snapshot()["jobs"].toArray().first().toObject()["state"].toString(),
+            QString("cancelled"), 3000);
         QVERIFY(!read(id, 2, 3)["ok"].toBool());
         QFile::remove(path);
     }

@@ -1,0 +1,72 @@
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -33,6 +33,7 @@
+ // local includes
+ #include "confighttp.h"
+ #include "display_device.h"
++#include "desk_lifecycle.h"
+ #include "entry_handler.h"
+ #include "globals.h"
+ #include "httpcommon.h"
+@@ -248,6 +249,9 @@
+ #pragma GCC diagnostic pop
+ 
+   mail::man = std::make_shared<safe::mail_raw_t>();
++  desk_lifecycle::watch_parent([shutdown = mail::man->event<bool>(mail::shutdown)]() {
++    shutdown->raise(true);
++  });
+ 
+   // parse config file
+   if (config::parse(argc, argv)) {
+--- /dev/null
++++ b/src/desk_lifecycle.h
+@@ -0,0 +1,49 @@
++/**
++ * @file src/desk_lifecycle.h
++ * @brief Bounded lifetime for the Sunshine process owned by Desk.
++ */
++#ifndef DESK_LIFECYCLE_H
++#define DESK_LIFECYCLE_H
++#include <cerrno>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <functional>
++#include <thread>
++#include <utility>
++
++namespace desk_lifecycle {
++  /**
++   * @brief Watch the private stdin pipe held open by Desk, even if Desk crashes.
++   *
++   * Unmanaged Sunshine instances keep their existing service lifetime. Closing
++   * the pipe requests graceful shutdown, with an independent five-second limit
++   * in case a worker or the shutdown callback is stuck. No PID lookup is needed.
++   * @param stop Callback requesting ordinary host shutdown.
++   */
++  inline void watch_parent(std::function<void()> stop) {
++    const char *managed = std::getenv("DESK_MANAGED_HOST");
++    if (!managed || std::strcmp(managed, "1") != 0) {
++      return;
++    }
++    std::thread([stop = std::move(stop)]() {
++      for (;;) {
++        if (std::getchar() != EOF) {
++          continue;
++        }
++        if (std::ferror(stdin) && errno == EINTR) {
++          std::clearerr(stdin);
++          continue;
++        }
++        break;
++      }
++      std::thread([]() {
++        std::this_thread::sleep_for(std::chrono::seconds(5));
++        std::_Exit(EXIT_SUCCESS);
++      }).detach();
++      stop();
++    }).detach();
++  }
++}
++#endif

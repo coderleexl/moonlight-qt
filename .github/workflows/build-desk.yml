@@ -150,6 +150,8 @@ jobs:
             foreach ($dll in @("Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll", "Qt6Test.dll")) {
               Copy-Item (Join-Path $env:QT_ROOT_DIR "bin/$dll") host/sunshine/
             }
+            # Both the test runner and its copied host fixture use OpenSSL.
+            $env:PATH = (Join-Path $env:GITHUB_WORKSPACE "libs/windows/lib/x64") + ";" + $env:PATH
             ./sunshine-manager-test.exe -o results.txt,txt
             $testExitCode = $LASTEXITCODE
             if (Test-Path results.txt) { Get-Content results.txt }
@@ -182,7 +184,10 @@ jobs:
           if [[ "$RUNNER_OS" == Linux ]]; then qmake_cmd=qmake6; fi
           "$qmake_cmd" ../../../tests/sunshine-manager/sunshine-manager.pro CONFIG+=host_preview CONFIG+=release CONFIG-=debug_and_release
           make -j3
-          QT_QPA_PLATFORM=offscreen ./sunshine-manager-test
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            export DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/libs/mac/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+          fi
+          QT_QPA_PLATFORM=offscreen ./sunshine-manager-test -o ../results.txt,txt -o -,txt
       - name: Test Windows installation and bundled host
         if: runner.os == 'Windows'
         shell: pwsh

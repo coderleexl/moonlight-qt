@@ -44,7 +44,12 @@ static int fakeHost(QCoreApplication& app)
     if (!DeskAccess::validPassword(password) || password != credentials.value("password").toString()) return 24;
     if (qEnvironmentVariable("DESK_DEVICE_ID") != credentials.value("deviceId").toString()) return 25;
     if (args.join(' ').contains(password)) return 26;
-    if (content.contains("test_exit")) return 42;
+    if (content.contains("test_exit")) {
+        // Let the stdin watcher block before exiting while the owner is alive.
+        // This catches stdio cleanup deadlocks from buffered reads in that thread.
+        QThread::msleep(200);
+        return 42;
+    }
     QTcpServer listener;
     listener.setProxy(QNetworkProxy::NoProxy);
     if (!listener.listen(QHostAddress::LocalHost, testWebPort())) return 22;

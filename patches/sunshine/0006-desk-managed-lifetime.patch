@@ -20,7 +20,7 @@
    if (config::parse(argc, argv)) {
 --- /dev/null
 +++ b/src/desk_lifecycle.h
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,65 @@
 +/**
 + * @file src/desk_lifecycle.h
 + * @brief Bounded lifetime for the Sunshine process owned by Desk.
@@ -29,12 +29,22 @@
 +#define DESK_LIFECYCLE_H
 +#include <cerrno>
 +#include <chrono>
-+#include <cstdio>
 +#include <cstdlib>
 +#include <cstring>
 +#include <functional>
 +#include <thread>
 +#include <utility>
++#ifdef _WIN32
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#ifndef WIN32_LEAN_AND_MEAN
++#define WIN32_LEAN_AND_MEAN
++#endif
++#include <windows.h>
++#else
++#include <unistd.h>
++#endif
 +
 +namespace desk_lifecycle {
 +  /**
@@ -51,16 +61,22 @@
 +      return;
 +    }
 +    std::thread([stop = std::move(stop)]() {
++      // Buffered stdio can hold stdin's FILE lock while blocked, preventing
++      // normal process exit from completing its stdio cleanup.
++      char buffer[64];
++#ifdef _WIN32
++      DWORD count;
++      while (ReadFile(GetStdHandle(STD_INPUT_HANDLE), buffer, sizeof(buffer), &count, nullptr) && count != 0) {
++      }
++#else
 +      for (;;) {
-+        if (std::getchar() != EOF) {
-+          continue;
-+        }
-+        if (std::ferror(stdin) && errno == EINTR) {
-+          std::clearerr(stdin);
++        const auto count = ::read(STDIN_FILENO, buffer, sizeof(buffer));
++        if (count > 0 || (count < 0 && errno == EINTR)) {
 +          continue;
 +        }
 +        break;
 +      }
++#endif
 +      std::thread([]() {
 +        std::this_thread::sleep_for(std::chrono::seconds(5));
 +        std::_Exit(EXIT_SUCCESS);

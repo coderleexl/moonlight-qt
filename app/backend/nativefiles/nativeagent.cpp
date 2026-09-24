@@ -20,7 +20,7 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QUuid>
-#include <cstdio>
+#include <cerrno>
 #include <cstdlib>
 #include <chrono>
 #include <thread>
@@ -28,6 +28,7 @@
 #include <windows.h>
 #else
 #include <signal.h>
+#include <unistd.h>
 #endif
 namespace {
 bool parentAlive(qint64 pid)
@@ -125,7 +126,19 @@ int NativeAgent::run(const QStringList& args)
     QGuiApplication::setQuitOnLastWindowClosed(false);
     // Parent owns stdin: EOF is a graceful stop even while the parent's Qt loop is suspended.
     std::thread([] {
-        while (std::getchar() != EOF) { }
+        // Do not hold a stdio FILE lock while waiting: it can deadlock normal exit.
+        char buffer[64];
+#ifdef Q_OS_WIN
+        DWORD count;
+        while (ReadFile(GetStdHandle(STD_INPUT_HANDLE), buffer, sizeof(buffer), &count, nullptr) && count != 0) { }
+#else
+        for (;;) {
+            const auto count = ::read(STDIN_FILENO, buffer, sizeof(buffer));
+            if (count > 0 || (count < 0 && errno == EINTR))
+                continue;
+            break;
+        }
+#endif
         qInfo() << "File clipboard helper stopping: parent channel closed";
         QMetaObject::invokeMethod(QCoreApplication::instance(), "quit", Qt::QueuedConnection);
         // Parent death must also stop a helper whose GUI/network loop is stuck.

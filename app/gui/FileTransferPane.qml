@@ -135,10 +135,10 @@ Rectangle {
     }
     DropArea {
         anchors.fill: parent
-        onEntered: function(drag) { drag.accepted = transfer.ready && ((drag.source && drag.source !== pane && drag.source.selected !== undefined) || (pane.remote && drag.hasUrls)); }
+        onEntered: function(drag) { drag.accepted = transfer.ready && (drag.supportedActions & Qt.CopyAction) && ((drag.source && drag.source !== pane && drag.source.selected !== undefined) || (pane.remote && drag.hasUrls)); }
         onDropped: function(drop) {
-            if (pane.remote && drop.hasUrls) { transfer.uploadFiles(drop.urls); drop.acceptProposedAction(); }
-            else if (drop.source && drop.source !== pane && drop.source.selected) { transfer.enqueue(pane.remote, drop.source.selected); drop.acceptProposedAction(); }
+            if (pane.remote && drop.hasUrls) { transfer.uploadFiles(drop.urls); drop.accept(Qt.CopyAction); }
+            else if (drop.source && drop.source !== pane && drop.source.selected) { transfer.enqueue(pane.remote, drop.source.selected); drop.accept(Qt.CopyAction); }
         }
         Rectangle { anchors.fill: parent; color: "transparent"; radius: 10; border.width: 2; border.color: window.accentColor; visible: parent.containsDrag }
     }

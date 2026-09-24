@@ -3,7 +3,8 @@ CONFIG += console testcase c++17
 CONFIG -= app_bundle
 TARGET = file-transfer-test
 win32-msvc*: QMAKE_CXXFLAGS += /utf-8
-INCLUDEPATH += ../../app ../../third_party/sunshine/src $$JSON_INCLUDE
+# Sunshine's src/process.h shadows the Windows CRT header if src is on /I.
+INCLUDEPATH += ../../app $$JSON_INCLUDE
 SOURCES += tst_filetransfer.cpp ../../app/backend/filetransfer.cpp ../../app/backend/identitymanager.cpp
 HEADERS += ../../app/backend/filetransfer.h
 macx {

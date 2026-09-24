@@ -17,7 +17,7 @@
 #include "backend/nativefiles/offerstore.h"
 #include "backend/nativefiles/jsontransport.h"
 #include "backend/identitymanager.h"
-#include "desk_files.h"
+#include "../../third_party/sunshine/src/desk_files.h"
 
 // Loopback TLS fixture runs the actual host filesystem implementation, not a mock filesystem.
 class FileServer : public QTcpServer {

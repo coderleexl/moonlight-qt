@@ -98,10 +98,10 @@ ApplicationWindow {
                         RowLayout {
                             Layout.fillWidth: true
                             Label { textFormat: Text.PlainText; text: (modelData.upload ? "↑ " : "↓ ") + modelData.name; color: window.textColor; elide: Text.ElideMiddle; Layout.fillWidth: true; font.pixelSize: 12 }
-                            Label { textFormat: Text.PlainText; text: modelData.committing && modelData.state === "running" ? qsTr("Finishing…") : window.statusName(modelData.state); color: window.secondaryColor; font.pixelSize: 11 }
-                            Label { textFormat: Text.PlainText; visible: modelData.state === "running"; text: window.formatSize(modelData.done) + " / " + window.formatSize(modelData.size) + " · " + window.formatSize(Math.round(modelData.speed)) + "/s"; color: window.secondaryColor; font.pixelSize: 11 }
+                            Label { textFormat: Text.PlainText; text: modelData.committing && modelData.state === "running" ? qsTr("Finishing…") : modelData.native && modelData.state === "done" ? qsTr("Data delivered") : window.statusName(modelData.state); color: window.secondaryColor; font.pixelSize: 11 }
+                            Label { textFormat: Text.PlainText; visible: modelData.state === "running"; text: window.formatSize(modelData.done) + " / " + window.formatSize(modelData.size) + (modelData.native ? "" : " · " + window.formatSize(Math.round(modelData.speed)) + "/s"); color: window.secondaryColor; font.pixelSize: 11 }
                             ToolButton { text: qsTr("Cancel"); visible: modelData.state === "queued" || modelData.state === "running" || modelData.state === "conflict"; enabled: !modelData.committing; implicitHeight: 28; onClicked: transfer.cancel(index) }
-                            ToolButton { text: qsTr("Retry"); visible: modelData.state === "failed" || modelData.state === "cancelled"; implicitHeight: 28; onClicked: transfer.retry(index) }
+                            ToolButton { text: qsTr("Retry"); visible: !modelData.native && (modelData.state === "failed" || modelData.state === "cancelled"); implicitHeight: 28; onClicked: transfer.retry(index) }
                         }
                         ProgressBar { visible: modelData.state === "running"; Layout.fillWidth: true; value: modelData.size > 0 ? modelData.done / modelData.size : 0; implicitHeight: 4 }
                         Label { textFormat: Text.PlainText; visible: modelData.detail.length > 0; text: modelData.detail; color: darkTheme ? "#FFAAAA" : "#B53838"; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 11 }

@@ -25,6 +25,13 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <algorithm>
+#include <QDrag>
+#include <QMimeData>
+#include <QClipboard>
+#include <QUuid>
+#include "nativefiles/jsontransport.h"
+#include "nativefiles/offerstore.h"
+#include "nativefiles/processutils.h"
 
 FileTransfer::FileTransfer(const QString& host, quint16 port, const QSslCertificate& certificate, QObject* parent)
     : QObject(parent), m_Certificate(certificate)
@@ -47,6 +54,88 @@ FileTransfer::FileTransfer(const QString& host, quint16 port, const QSslCertific
     auto downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     browseLocal(QDir(downloads).exists() ? downloads : QDir::homePath());
     QTimer::singleShot(0, this, [this] { browseRemote(""); });
+    auto nativeTimer=new QTimer(this); nativeTimer->setInterval(500);
+    connect(nativeTimer,&QTimer::timeout,this,&FileTransfer::refreshNativeJobs);nativeTimer->start();
+}
+
+FileTransfer::~FileTransfer() = default;
+void FileTransfer::uploadFiles(const QList<QUrl>& urls)
+{
+    if (!m_Ready) return;
+    for (const auto& url : urls) {
+        QFileInfo source(url.toLocalFile());
+        if (!url.isLocalFile() || !source.exists() || source.isSymLink() || !validName(source.fileName())) {
+            setError(tr("Only local files and folders can be uploaded.")); continue;
+        }
+        addJob(true, source.absoluteFilePath(), join(m_RemotePath, source.fileName()));
+    }
+    emit jobsChanged(); startNext();
+}
+void FileTransfer::pasteFiles()
+{
+    uploadFiles(QGuiApplication::clipboard()->mimeData()->urls());
+}
+void FileTransfer::systemDrag(bool remote, const QVariantList& names, QObject* object)
+{
+    auto window = qobject_cast<QWindow*>(object);
+    if (!window || names.isEmpty()) return;
+    if (!remote) {
+        QDrag drag(window); auto mime = new QMimeData(); QList<QUrl> urls;
+        for (const auto& value : names) if (validName(value.toString())) urls.append(QUrl::fromLocalFile(join(m_LocalPath, value.toString())));
+        mime->setUrls(urls); drag.setMimeData(mime); drag.exec(Qt::CopyAction); return;
+    }
+    if (!m_Ready || (m_NativePlatform&&m_NativePlatform->pendingDrag())) return;
+    if (!m_NativePlatform) {
+        m_NativePlatform = NativeFilePlatform::create();
+        connect(m_NativePlatform.get(), &NativeFilePlatform::error, this, &FileTransfer::setError);
+    }
+    if (!m_NativePlatform->supported()) { setError(tr("System file dragging is unavailable in this desktop session.")); return; }
+    NativeTransport transport; transport.url=m_Url; transport.peer=m_Certificate; transport.identity=IdentityManager::get()->getSslConfig();
+    QJsonArray entries; QHash<QString, QJsonObject> sources;
+    std::function<bool(QString,QString,int)> visit = [&](QString path,QString name,int depth) {
+        if (depth>64 || entries.size()>=10000 || !NativeOfferStore::safePath(name)) return false;
+        auto stat=transport.call({{"op","stat"},{"path",path}});
+        if (!stat["ok"].toBool() || !stat["exists"].toBool()) return false;
+        auto id=QUuid::createUuid().toString(QUuid::WithoutBraces);
+        entries.append(QJsonObject{{"id",id},{"path",name},{"directory",stat["dir"]},{"size",stat["size"]}});
+        sources.insert(id,{{"path",path},{"version",stat["version"]}});
+        if (stat["dir"].toBool()) {
+            auto list=transport.call({{"op","list"},{"path",path}}); if (!list["ok"].toBool()) return false;
+            for (auto child:list["entries"].toArray()) {auto n=child.toObject()["name"].toString();if (!validName(n)||!visit(join(path,n),join(name,n),depth+1)) return false;}
+        }
+        return true;
+    };
+    for (const auto& value:names) if (!validName(value.toString()) || !visit(join(m_RemotePath,value.toString()),value.toString(),0)) {setError(tr("Cannot prepare selected files for dragging."));return;}
+    QJsonObject offer{{"ok",true},{"id",QUuid::createUuid().toString(QUuid::WithoutBraces)},{"entries",entries}};
+    if (!NativeOfferStore::validManifest(offer)) {setError(tr("Too many files or unsupported file names."));return;}
+    if(!m_NativeActivity)m_NativeActivity=std::make_unique<NativeActivity>(NativeActivity::peerKey(m_Url,m_Certificate.toDer()));
+    m_NativePlatform->drag(offer,m_NativeActivity->track(offer,[transport,sources](const QString& file,qint64 offset,int length) {
+        if (!sources.contains(file)) return QJsonObject{{"ok",false},{"error","Unknown selected file"}};
+        auto source=sources[file];auto result=transport.call({{"op","read"},{"path",source["path"]},{"version",source["version"]},{"offset",offset}});
+        if (result["ok"].toBool()) {
+            auto encoded=result["data"].toString().toLatin1();auto bytes=QByteArray::fromBase64(encoded);
+            if (bytes.toBase64()!=encoded || bytes.size()>256*1024) return QJsonObject{{"ok",false},{"error","Invalid file data"}};
+            result["data"]=QString::fromLatin1(bytes.left(length).toBase64());
+        }
+        return result;
+    },false),window);
+}
+void FileTransfer::refreshNativeJobs()
+{
+    QVariantList jobs; const auto key=NativeActivity::peerKey(m_Url,m_Certificate.toDer());
+    const auto files=QDir(NativeActivity::directory()).entryInfoList({key+"-*.json"},QDir::Files,QDir::Time);
+    for (const auto& info:files) {
+        if (jobs.size()>=100) break;
+        QFile file(info.absoluteFilePath()); if (!file.open(QIODevice::ReadOnly) || file.size()>512*1024) continue;
+        auto snapshot=QJsonDocument::fromJson(file.readAll()).object();
+        for (const auto& value:snapshot["jobs"].toArray()) {
+            auto job=value.toObject().toVariantMap();
+            if (job["state"]=="running" && !nativeProcessAlive(snapshot["pid"].toVariant().toLongLong())) {job["state"]="failed";job["detail"]=tr("The transfer process ended. Copy or drag the files again to retry.");}
+            job["nativePath"]=info.absoluteFilePath();job["session"]=snapshot["session"].toString();jobs.append(job);
+        }
+    }
+    const bool pending=m_NativePlatform&&m_NativePlatform->pendingDrag();
+    if (jobs!=m_NativeJobs||pending!=m_NativePending) {m_NativePending=pending;m_NativeJobs=jobs;emit jobsChanged();}
 }
 
 bool FileTransfer::validName(const QString& name)
@@ -188,11 +277,14 @@ QVariantList FileTransfer::jobs() const
         const double speed = j->timer.isValid() && j->timer.elapsed() > 0 ? double(j->done) * 1000.0 / j->timer.elapsed() : 0;
         result.append(QVariantMap{{"name", j->name}, {"upload", j->upload}, {"state", j->state}, {"detail", j->detail}, {"done", j->done}, {"size", j->size}, {"speed", speed}, {"committing", j->committing}});
     }
+    result.append(m_NativeJobs);
     return result;
 }
 bool FileTransfer::busy() const
 {
+    if(m_NativePlatform&&m_NativePlatform->pendingDrag())return true;
     for (const auto& j : m_Jobs) if (j->state == "queued" || j->state == "running" || j->state == "conflict") return true;
+    for (const auto& value:m_NativeJobs) if (value.toMap()["state"]=="running") return true;
     return false;
 }
 void FileTransfer::startNext()
@@ -229,6 +321,11 @@ void FileTransfer::fail(JobPtr job, const QString& message)
 }
 void FileTransfer::cancel(int index)
 {
+    if (index>=m_Jobs.size() && index<m_Jobs.size()+m_NativeJobs.size()) {
+        auto job=m_NativeJobs[index-m_Jobs.size()].toMap();QSaveFile file(job["nativePath"].toString()+".cancel");
+        if (file.open(QIODevice::WriteOnly)) {file.write(QJsonDocument(QJsonObject{{"session",job["session"].toString()},{"id",job["id"].toString()}}).toJson());file.commit();}
+        return;
+    }
     if (index < 0 || index >= m_Jobs.size()) return;
     auto job = m_Jobs[index];
     if (job->committing || (job->state != "queued" && job->state != "running" && job->state != "conflict")) return;
@@ -245,6 +342,10 @@ void FileTransfer::retry(int index)
 }
 void FileTransfer::clearFinished()
 {
+    QSet<QString> activePaths;
+    for (const auto& value:m_NativeJobs) {auto job=value.toMap();if (job["state"]=="running") activePaths.insert(job["nativePath"].toString());}
+    for (const auto& value:m_NativeJobs) {auto path=value.toMap()["nativePath"].toString();if (!activePaths.contains(path)) QFile::remove(path);}
+    refreshNativeJobs();
     for (auto it = m_Jobs.begin(); it != m_Jobs.end();) {
         if ((*it)->state != "queued" && (*it)->state != "running" && (*it)->state != "conflict") it = m_Jobs.erase(it); else ++it;
     }

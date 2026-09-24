@@ -9,7 +9,7 @@ import sys
 root = Path(__file__).resolve().parent.parent
 build = root / 'build' / 'file-transfer-test.noindex'
 build.mkdir(parents=True, exist_ok=True)
-candidates = [Path('C:/msys64/ucrt64/include/nlohmann/json.hpp'), Path('/usr/include/nlohmann/json.hpp')]
+candidates = [root / 'build/native-test-deps/include/nlohmann/json.hpp', Path('C:/msys64/ucrt64/include/nlohmann/json.hpp'), Path('/usr/include/nlohmann/json.hpp')]
 candidates.extend((root / 'build').glob('**/_deps/json-src/include/nlohmann/json.hpp'))
 header = next((p for p in candidates if p.is_file()), None)
 if header is None:
@@ -31,4 +31,21 @@ if os.name == 'nt':
 program = build / ('file-transfer-test.exe' if os.name == 'nt' else 'file-transfer-test')
 result = subprocess.run([str(program), '-o', 'results.txt,txt'], cwd=build, env=env)
 print((build / 'results.txt').read_text(encoding='utf-8', errors='replace'), flush=True)
+if result.returncode:
+    sys.exit(result.returncode)
+# Exercise the X11 adapter separately; keep QML screenshot tests deterministic offscreen.
+if sys.platform.startswith('linux'):
+    xenv = dict(env, QT_QPA_PLATFORM='xcb')
+    result = subprocess.run(['xvfb-run', '-a', str(program), 'nativeAdapterReadsOnDemand', '-o', 'results-x11.txt,txt'], cwd=build, env=xenv)
+    print((build / 'results-x11.txt').read_text(encoding='utf-8', errors='replace'), flush=True)
+    if result.returncode:
+        sys.exit(result.returncode)
+# Core session, capability and loopback tests use no real system clipboard.
+core = root / 'build/native-files-test.noindex'
+core.mkdir(parents=True, exist_ok=True)
+subprocess.run([qmake, str(root / 'tests/native-files/native-files.pro'), 'CONFIG+=release', 'CONFIG-=debug_and_release', 'DESTDIR=.'], cwd=core, check=True)
+subprocess.run(['nmake'] if os.name == 'nt' else ['make', '-j3'], cwd=core, check=True)
+core_program = core / ('native-files-test.exe' if os.name == 'nt' else 'native-files-test')
+result = subprocess.run([str(core_program), '-o', 'results.txt,txt'], cwd=core, env=env)
+print((core / 'results.txt').read_text(encoding='utf-8', errors='replace'), flush=True)
 sys.exit(result.returncode)

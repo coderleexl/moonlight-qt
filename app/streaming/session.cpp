@@ -1,3 +1,4 @@
+#include "backend/nativefiles/nativeagent.h"
 #include "session.h"
 #include "streamtoolbar.h"
 #include "backend/filetransfer.h"
@@ -1967,6 +1968,9 @@ void Session::exec()
 
     // Start rich presence to indicate we're in game
     RichPresenceManager presence(*m_Preferences, m_App.name);
+    QProcess clipboardProcess;
+    NativeAgent::startClient(clipboardProcess, m_Computer->activeAddress.address(), m_Computer->activeHttpsPort, m_Computer->serverCert);
+
     StreamToolbar toolbar(m_Window, m_QtWindow && m_QtWindow->property("darkTheme").toBool());
     Uint32 lastToolbarUpdate = SDL_GetTicks() - 100;
 
@@ -2380,6 +2384,7 @@ DispatchDeferredCleanup:
     m_InputHandler->setCaptureActive(false);
     toolbar.close();
     SDL_HideWindow(m_Window);
+    NativeAgent::stop(clipboardProcess);
     SDL_EnableScreenSaver();
     SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "0");
     if (QGuiApplication::platformName() == "eglfs") {

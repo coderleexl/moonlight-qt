@@ -75,6 +75,7 @@ private:
     bool saveAccess(const QString& deviceId, const QString& password);
 
     QProcess m_Process;
+    QProcess m_ClipboardProcess;
     QTcpSocket m_Probe;
     QTimer m_HealthTimer;
     QTimer m_StartTimeout;

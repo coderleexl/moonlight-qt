@@ -94,9 +94,9 @@ def handshake(password, key, cert, pem, should_accept):
 
 def test_file_transfer(directory, context, server_pem):
     """Exercise the real HTTPS route, certificate gate, sandbox and chunk protocol."""
-    def files(payload, tls=context):
+    def files(payload, tls=context, route="files"):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=tls))
-        req = urllib.request.Request('https://127.0.0.1:48984/desk/files',
+        req = urllib.request.Request('https://127.0.0.1:48984/desk/' + route,
                                      json.dumps(payload).encode(), {'Content-Type': 'application/json'})
         with opener.open(req, timeout=10) as response:
             return response.read()
@@ -110,6 +110,13 @@ def test_file_transfer(directory, context, server_pem):
     unpaired.load_cert_chain(unknown / 'client.pem', unknown / 'client.key')
     denied = files({'op': 'list', 'path': ''}, unpaired)
     assert ET.fromstring(denied).get('status_code') == '401', 'Unpaired certificate accessed file endpoint'
+
+    denied_clipboard = files({'op': 'open'}, unpaired, 'clipboard')
+    assert ET.fromstring(denied_clipboard).get('status_code') == '401', 'Unpaired certificate accessed clipboard endpoint'
+    for operation in ('open', 'exchange', 'read'):
+        result = json.loads(files({'op': operation}, route='clipboard'))
+        assert not result['ok'] and result['error'] == 'An active streaming session is required', result
+    print('Clipboard HTTPS gate passed: unpaired and non-streaming clients rejected.')
 
     def call(**payload):
         return json.loads(files(payload))

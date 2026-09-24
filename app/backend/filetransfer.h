@@ -11,6 +11,8 @@
 #include <QSaveFile>
 #include <functional>
 #include <memory>
+#include "nativefiles/nativeplatform.h"
+#include "nativefiles/activity.h"
 
 // Lives in the transfer window's own process: the streaming SDL loop never pumps Qt.
 class FileTransfer : public QObject
@@ -28,6 +30,7 @@ class FileTransfer : public QObject
     Q_PROPERTY(QString conflict READ conflict NOTIFY conflictChanged)
     Q_PROPERTY(int limitMiB MEMBER m_LimitMiB NOTIFY limitChanged)
 public:
+    ~FileTransfer() override;
     FileTransfer(const QString& host, quint16 port, const QSslCertificate& certificate, QObject* parent = nullptr);
     QString localPath() const { return m_LocalPath; }
     QString remotePath() const { return m_RemotePath; }
@@ -45,6 +48,10 @@ public:
     Q_INVOKABLE void parentDirectory(bool remote);
     Q_INVOKABLE void home();
     Q_INVOKABLE void enqueue(bool upload, const QVariantList& names);
+    Q_INVOKABLE void uploadFiles(const QList<QUrl>& urls);
+    Q_INVOKABLE void pasteFiles();
+    Q_INVOKABLE void systemDrag(bool remote, const QVariantList& names, QObject* window);
+
     Q_INVOKABLE void cancel(int index);
     Q_INVOKABLE void retry(int index);
     Q_INVOKABLE void resolveConflict(const QString& choice);
@@ -89,6 +96,11 @@ private:
     void saveHistory();
     static QString localVersion(const QString& path);
     static QString join(const QString& path, const QString& name);
+    std::unique_ptr<NativeFilePlatform> m_NativePlatform;
+    std::unique_ptr<NativeActivity> m_NativeActivity;
+    QVariantList m_NativeJobs;
+    bool m_NativePending = false;
+    void refreshNativeJobs();
     QNetworkAccessManager m_Network;
     QUrl m_Url;
     QSslCertificate m_Certificate;

@@ -53,6 +53,7 @@
 #include "backend/systemproperties.h"
 #include "backend/sunshinemanager.h"
 #include "backend/filetransfer.h"
+#include "backend/nativefiles/nativeagent.h"
 #include "streaming/session.h"
 #include "settings/streamingpreferences.h"
 #include "gui/sdlgamepadkeynavigation.h"
@@ -810,6 +811,12 @@ int main(int argc, char *argv[])
         }
     }
 #endif
+
+    if (app.arguments().value(1).startsWith("--desk-clipboard-")) {
+        StreamingPreferences::get()->retranslate();
+        IdentityManager::get();
+        return NativeAgent::run(app.arguments());
+    }
 
     if (app.arguments().value(1) == "--desk-files") {
         StreamingPreferences::get()->retranslate();

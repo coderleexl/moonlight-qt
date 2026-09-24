@@ -14,6 +14,7 @@
 #include <QQuickStyle>
 #include <QTranslator>
 #include "backend/filetransfer.h"
+#include "backend/nativefiles/offerstore.h"
 #include "backend/identitymanager.h"
 #include "desk_files.h"
 
@@ -86,6 +87,29 @@ private slots:
         begin = op({{"op", "begin"}, {"path", "keep.txt"}, {"size", 0}, {"expected", "missing"}});
         QVERIFY(!begin["ok"].get<bool>()); QCOMPARE(read(root.filePath("keep.txt")), QByteArray("original"));
         QVERIFY(!op({{"op", "read"}, {"path", "keep.txt"}, {"offset", 0}, {"version", "stale"}})["ok"].get<bool>());
+    }
+    void nativeAdapterReadsOnDemand() {
+        QTemporaryDir root,target;
+        const auto bytes=QByteArray(900000,'n');write(root.filePath("原生文件.bin"),bytes);
+        NativeOfferStore store;auto offer=store.publish({root.filePath("原生文件.bin")});QVERIFY(offer["ok"].toBool());
+        QCOMPARE(store.bytesRead(),qint64(0));
+        auto reader=[&](const QString& id,qint64 offset,int length){return store.read(offer["id"].toString(),id,offset,length);};
+        auto result=nativeAdapterProbe(offer,reader,target.filePath("renamed.bin"));
+        if(result["skip"].toBool())QSKIP(qPrintable(result["error"].toString()));
+        QVERIFY(result["ok"].toBool());QCOMPARE(read(target.filePath("renamed.bin")),bytes);
+        QVERIFY(store.bytesRead()>0);
+    }
+    void uploadFromSystemFileUrls() {
+        QTemporaryDir remote, local;
+        FileServer server(remote.path()); QVERIFY(server.listen(QHostAddress::LocalHost));
+        FileTransfer client("127.0.0.1",server.serverPort(),server.identity.localCertificate());
+        QTRY_VERIFY_WITH_TIMEOUT(client.ready(),10000);
+        write(local.filePath("from-finder.txt"),"system file");
+        client.uploadFiles({QUrl::fromLocalFile(local.filePath("from-finder.txt"))});
+        QTRY_VERIFY_WITH_TIMEOUT(!client.busy(),10000);
+        QCOMPARE(read(remote.filePath("from-finder.txt")),QByteArray("system file"));
+        client.uploadFiles({QUrl("https://example.com/not-a-local-file")});
+        QVERIFY(!client.error().isEmpty());
     }
     void uploadDownloadFoldersAndConflicts() {
         QTemporaryDir remote, local, destination;

@@ -79,7 +79,7 @@ Priority: optional
 Maintainer: coderleexl <coderleexl@users.noreply.github.com>
 Homepage: https://github.com/coderleexl/moonlight-qt
 Installed-Size: $(du -sk "$stage/usr" | cut -f1)
-Depends: $elf_deps, qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-controls, qml6-module-qtquick-templates, qml6-module-qtquick-layouts, qml6-module-qtqml-workerscript, qml6-module-qtqml-models, qt6-qpa-plugins, qt6-wayland, libqt6svg6, udev, kmod
+Depends: $elf_deps, qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-controls, qml6-module-qtquick-templates, qml6-module-qtquick-layouts, qml6-module-qtqml-workerscript, qml6-module-qtqml-models, qt6-qpa-plugins, qt6-wayland, libqt6svg6, udev, kmod, fuse3
 Recommends: xdg-desktop-portal
 Description: Desk remote desktop streaming with integrated Sunshine
  Native Qt desktop client and a private, application-managed Sunshine host.

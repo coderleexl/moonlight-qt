@@ -21,3 +21,6 @@ macx {
 }
 
 RESOURCES += filetransfer.qrc
+
+include(../../app/backend/nativefiles/nativefiles.pri)
+DEFINES += DESK_NATIVE_TESTS

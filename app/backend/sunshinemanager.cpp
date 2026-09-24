@@ -1,3 +1,4 @@
+#include "nativefiles/nativeagent.h"
 #include "sunshinemanager.h"
 #include "deskaccess.h"
 
@@ -53,6 +54,7 @@ SunshineManager::SunshineManager(QObject* parent) : QObject(parent)
     connect(&m_Process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
             [this](int code, QProcess::ExitStatus) {
         readOutput();
+        NativeAgent::stop(m_ClipboardProcess);
         m_HealthTimer.stop();
         m_StartTimeout.stop();
         m_StopTimeout.stop();
@@ -89,6 +91,7 @@ SunshineManager::SunshineManager(QObject* parent) : QObject(parent)
 
 SunshineManager::~SunshineManager()
 {
+    NativeAgent::stop(m_ClipboardProcess);
     if (m_Process.state() != QProcess::NotRunning) {
         m_Process.terminate();
         if (!m_Process.waitForFinished(3000)) {
@@ -313,6 +316,11 @@ void SunshineManager::start()
     environment.insert("DESK_DEVICE_ID", m_DeviceId);
     environment.insert("DESK_ACCESS_PASSWORD", m_AccessPassword);
     environment.insert("DESK_FILE_ROOT", QString::fromLatin1(sharedDirectory().toUtf8().toBase64()));
+    NativeAgent::stop(m_ClipboardProcess);
+    if (!NativeAgent::startHost(m_ClipboardProcess, environment)) {
+        m_Log += tr("File clipboard is unavailable; hosting and regular transfers remain available.") + "\n";
+        emit logChanged();
+    }
     m_Process.setProcessEnvironment(environment);
     m_Process.setArguments({config.filePath("sunshine.conf"),
                            QString("port=%1").arg(basePort()), "address_family=ipv4", "origin_web_ui_allowed=pc", "upnp=disabled",
@@ -330,6 +338,7 @@ void SunshineManager::start()
 
 void SunshineManager::stop()
 {
+    NativeAgent::stop(m_ClipboardProcess);
     if (m_Process.state() == QProcess::NotRunning) {
         setState(Stopped);
         return;

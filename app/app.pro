@@ -605,3 +605,5 @@ macx {
 
 VERSION = "$$cat(version.txt)"
 DEFINES += VERSION_STR=\\\"$$cat(version.txt)\\\"
+
+include(backend/nativefiles/nativefiles.pri)

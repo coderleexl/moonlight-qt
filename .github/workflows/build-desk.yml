@@ -93,7 +93,7 @@ jobs:
             qml6-module-qtquick-templates qml6-module-qtquick-layouts qml6-module-qtqml-workerscript qml6-module-qtqml-models \
             libsdl2-dev libsdl2-ttf-dev libssl-dev libopus-dev libavcodec-dev libavformat-dev libswscale-dev \
             libva-dev libvdpau-dev libxkbcommon-dev libegl-dev libgl-dev libdrm-dev \
-            libcap-dev libcurl4-openssl-dev libevdev-dev libgbm-dev libminiupnpc-dev libnuma-dev \
+            libfuse3-dev fuse3 libcap-dev libcurl4-openssl-dev libevdev-dev libgbm-dev libminiupnpc-dev libnuma-dev \
             libpipewire-0.3-dev libpulse-dev libsystemd-dev libudev-dev libwayland-dev wayland-protocols \
             libx11-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb1-dev libxfixes-dev libxrandr-dev \
             libxtst-dev libvulkan-dev libglvnd-dev libicu-dev libnotify-dev libglib2.0-dev glslang-tools \

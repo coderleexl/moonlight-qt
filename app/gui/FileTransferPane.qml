@@ -90,20 +90,33 @@ Rectangle {
                     hoverEnabled: true
                     drag.target: dragPreview
                     drag.threshold: 8
+                    property bool systemDragStarted: false
                     onPressed: function(mouse) {
+                        systemDragStarted = false;
                         if (!(mouse.modifiers & Qt.ControlModifier) && !(mouse.modifiers & Qt.MetaModifier) && pane.selected.indexOf(modelData.name) < 0) pane.selected = [modelData.name];
                         var point = mapToItem(pane, mouseX, mouseY);
                         dragPreview.x = point.x; dragPreview.y = point.y;
                     }
+                    onPositionChanged: function(event) {
+                        if (!drag.active || systemDragStarted) return;
+                        var position = mapToItem(window.contentItem, event.x, event.y);
+                        if (position.x < 0 || position.y < 0 || position.x > window.width || position.y > window.height) {
+                            systemDragStarted = true;
+                            dragPreview.Drag.cancel();
+                            transfer.systemDrag(pane.remote, pane.selected, window);
+                        }
+                    }
                     onClicked: function(mouse) { if (mouse.modifiers & Qt.ControlModifier || mouse.modifiers & Qt.MetaModifier) pane.toggle(modelData.name); }
                     onDoubleClicked: pane.openEntry(modelData)
                     onReleased: { if (dragPreview.Drag.active) dragPreview.Drag.drop(); }
-                    drag.onActiveChanged: dragPreview.Drag.active = drag.active
+                    drag.onActiveChanged: dragPreview.Drag.active = drag.active && !systemDragStarted
                 }
             }
             Label { textFormat: Text.PlainText; anchors.centerIn: parent; visible: files.count === 0; text: pane.remote && !transfer.ready ? qsTr("Connecting…") : qsTr("This folder is empty"); color: window.secondaryColor }
             Keys.onPressed: function(event) {
-                if ((event.modifiers & Qt.ControlModifier || event.modifiers & Qt.MetaModifier) && event.key === Qt.Key_A) {
+                if (pane.remote && event.matches(StandardKey.Paste)) {
+                    transfer.pasteFiles(); event.accepted = true;
+                } else if ((event.modifiers & Qt.ControlModifier || event.modifiers & Qt.MetaModifier) && event.key === Qt.Key_A) {
                     var names = []; for (var i = 0; i < pane.entries.length; ++i) names.push(pane.entries[i].name); pane.selected = names; event.accepted = true;
                 }
             }
@@ -122,10 +135,10 @@ Rectangle {
     }
     DropArea {
         anchors.fill: parent
-        keys: ["desk-files"]
-        onEntered: function(drag) { drag.accepted = drag.source && drag.source !== pane && transfer.ready; }
+        onEntered: function(drag) { drag.accepted = transfer.ready && ((drag.source && drag.source !== pane && drag.source.selected !== undefined) || (pane.remote && drag.hasUrls)); }
         onDropped: function(drop) {
-            if (drop.source && drop.source !== pane) { transfer.enqueue(pane.remote, drop.source.selected); drop.acceptProposedAction(); }
+            if (pane.remote && drop.hasUrls) { transfer.uploadFiles(drop.urls); drop.acceptProposedAction(); }
+            else if (drop.source && drop.source !== pane && drop.source.selected) { transfer.enqueue(pane.remote, drop.source.selected); drop.acceptProposedAction(); }
         }
         Rectangle { anchors.fill: parent; color: "transparent"; radius: 10; border.width: 2; border.color: window.accentColor; visible: parent.containsDrag }
     }

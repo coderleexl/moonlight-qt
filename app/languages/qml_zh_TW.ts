@@ -1916,6 +1916,10 @@
         <source>Unable to read or save this computer's access credentials.</source>
         <translation>無法讀取或儲存本機的存取憑證。</translation>
     </message>
+    <message>
+        <source>File clipboard is unavailable; hosting and regular transfers remain available.</source>
+        <translation>檔案剪貼簿暫不可用，主機服務和一般傳輸仍可使用。</translation>
+    </message>
 </context>
     <context>
         <name>StreamToolbar</name>
@@ -2026,6 +2030,26 @@
         <source>Transfer failed.</source>
         <translation>傳輸失敗。</translation>
     </message>
+    <message>
+        <source>Only local files and folders can be uploaded.</source>
+        <translation>只能上傳本機檔案和資料夾。</translation>
+    </message>
+    <message>
+        <source>System file dragging is unavailable in this desktop session.</source>
+        <translation>目前桌面工作階段不支援系統檔案拖曳。</translation>
+    </message>
+    <message>
+        <source>Cannot prepare selected files for dragging.</source>
+        <translation>無法準備所選檔案，請檢查連線後重試。</translation>
+    </message>
+    <message>
+        <source>Too many files or unsupported file names.</source>
+        <translation>檔案過多或包含不支援的檔名。</translation>
+    </message>
+    <message>
+        <source>File clipboard</source>
+        <translation>檔案剪貼簿</translation>
+    </message>
 </context>
 <context>
     <name>FileTransferWindow</name>
@@ -2120,6 +2144,10 @@
     <message>
         <source>Waiting for your choice</source>
         <translation>等待選擇</translation>
+    </message>
+    <message>
+        <source>Data delivered</source>
+        <translation>內容已傳輸</translation>
     </message>
 </context>
 <context>

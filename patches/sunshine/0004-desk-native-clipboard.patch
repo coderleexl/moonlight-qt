@@ -1,0 +1,162 @@
+--- a/src/nvhttp.cpp
++++ b/src/nvhttp.cpp
+@@ -27,6 +27,7 @@
+ // local includes
+ #include "config.h"
+ #include "desk_files.h"
++#include "desk_clipboard.h"
+ #include "display_device.h"
+ #include "file_handler.h"
+ #include "globals.h"
+@@ -127,6 +128,19 @@
+       context.use_private_key_file(private_key_file, boost::asio::ssl::context::pem);
+     }
+ 
++    /** @brief Bind request identity to its own TLS handshake, never global state. */
++    static std::string request_peer(const std::shared_ptr<Request> &request, const std::string &set = {}) {
++      static std::mutex mutex;
++      static std::map<std::weak_ptr<Request>, std::string, std::owner_less<std::weak_ptr<Request>>> peers;
++      std::lock_guard lock(mutex);
++      for (auto it = peers.begin(); it != peers.end();) {
++        if (it->first.expired()) it = peers.erase(it); else ++it;
++      }
++      if (!set.empty()) peers[request] = set;
++      auto it = peers.find(request);
++      return it == peers.end() ? std::string() : it->second;
++    }
++
+     std::function<int(SSL *)> verify;  ///< Callback that validates a client's TLS certificate after handshake.
+     std::function<void(std::shared_ptr<Response>, std::shared_ptr<Request>)> on_verify_failed;  ///< Handler used to return the pairing challenge when client verification fails.
+ 
+@@ -181,6 +195,8 @@
+               if (verify && !verify(session->connection->socket->native_handle())) {
+                 this->write(session, on_verify_failed);
+               } else {
++                crypto::x509_t certificate {SSL_get_peer_certificate(session->connection->socket->native_handle())};
++                if (certificate) request_peer(session->request, crypto::pem(certificate));
+                 this->read(session);
+               }
+             } else if (this->on_error) {
+@@ -1458,6 +1474,7 @@
+ 
+     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+     auto launch_session = make_launch_session(host_audio, args);
++    launch_session->client_cert = SunshineHTTPSServer::request_peer(request);
+ 
+     if (rtsp_stream::session_count() == 0) {
+       // The display should be restored in case something fails as there are no other sessions.
+@@ -1573,6 +1590,7 @@
+       host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+     }
+     const auto launch_session = make_launch_session(host_audio, args);
++    launch_session->client_cert = SunshineHTTPSServer::request_peer(request);
+ 
+     if (no_active_sessions) {
+       // We want to prepare display only if there are no active sessions at
+@@ -1811,6 +1829,27 @@
+       }
+       response->write(SimpleWeb::StatusCode::success_ok, result.dump(), {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
+     };
++    https_server.resource["^/desk/clipboard$"]["POST"] = [](auto response, auto request) {
++      response->close_connection_after_response = true;
++      nlohmann::json result;
++      auto peer = SunshineHTTPSServer::request_peer(request);
++      if (peer.empty() || net::from_address(net::addr_to_normalized_string(request->remote_endpoint().address())) == net::WAN || request->content.size() > 768 * 1024) {
++        result = {{"ok", false}, {"error", "Clipboard request rejected"}};
++      } else {
++        try {
++          auto body = nlohmann::json::parse(request->content.string());
++          auto op = body.value("op", std::string());
++          if (op != "capabilities" && op != "close" && !rtsp_stream::has_session_for_cert(peer)) {
++            result = {{"ok", false}, {"error", "An active streaming session is required"}};
++          } else {
++            result = desk_clipboard::forward(peer, body);
++          }
++        } catch (const std::exception &) {
++          result = {{"ok", false}, {"error", "Invalid clipboard request"}};
++        }
++      }
++      response->write(SimpleWeb::StatusCode::success_ok, result.dump(), {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}});
++    };
+     https_server.config.max_request_streambuf_size = 1024 * 1024;
+ 
+     https_server.config.reuse_address = true;
+--- a/src/rtsp.cpp
++++ b/src/rtsp.cpp
+@@ -640,6 +640,15 @@
+       return (int) _session_slots->size();
+     }
+ 
++    /** @brief Check the owner of an active streaming session. */
++    bool has_session_for_cert(std::string_view cert) {
++      auto lock = _session_slots.lock();
++      for (auto &slot : *_session_slots) {
++        if (stream::session::client_cert(*slot) == cert && stream::session::state(*slot) == stream::session::state_e::RUNNING) return true;
++      }
++      return false;
++    }
++
+     safe::event_t<std::shared_ptr<launch_session_t>> launch_event;  ///< Launch event.
+ 
+     /**
+@@ -756,6 +765,8 @@
+ 
+     return server.session_count();
+   }
++
++  bool has_session_for_cert(std::string_view cert) { return server.has_session_for_cert(cert); }
+ 
+   void terminate_sessions() {
+     server.clear(true);
+--- a/src/rtsp.h
++++ b/src/rtsp.h
+@@ -65,6 +65,9 @@
+    */
+   int session_count();
+ 
++  /** @brief Whether this certificate owns a currently running stream. */
++  bool has_session_for_cert(std::string_view cert);
++
+   /**
+    * @brief Terminates all running streaming sessions.
+    */
+--- /dev/null
++++ b/src/desk_clipboard.h
+@@ -0,0 +1,37 @@
++/** @file src/desk_clipboard.h
++ * @brief Authenticated loopback bridge to the current desktop user's clipboard helper.
++ */
++#ifndef DESK_CLIPBOARD_H
++#define DESK_CLIPBOARD_H
++#include <curl/curl.h>
++#include <nlohmann/json.hpp>
++#include <cstdlib>
++#include <string>
++namespace desk_clipboard {
++/** @brief Forward only supported clipboard operations to the private helper. */
++inline nlohmann::json forward(const std::string &peer,nlohmann::json request) {
++  const char *port_env=std::getenv("DESK_CLIPBOARD_PORT"), *token_env=std::getenv("DESK_CLIPBOARD_TOKEN");
++  if (!port_env || !token_env) return {{"ok",false},{"error","Host clipboard integration is unavailable"}};
++  const std::string port(port_env),token(token_env),op=request.value("op",std::string());
++  if (port.empty() || port.size()>5 || port.find_first_not_of("0123456789")!=std::string::npos || token.size()!=72) return {{"ok",false},{"error","Invalid bridge configuration"}};
++  if (op!="open" && op!="exchange" && op!="read" && op!="close" && op!="capabilities") return {{"ok",false},{"error","Unsupported operation"}};
++  request["peer"]=peer;
++  auto body=request.dump(); std::string response;
++  auto curl=curl_easy_init(); if (!curl) return {{"ok",false},{"error","Bridge unavailable"}};
++  auto headers=curl_slist_append(nullptr,("Authorization: Bearer "+token).c_str());
++  headers=curl_slist_append(headers,"Content-Type: application/json");
++  const auto url="http://127.0.0.1:"+port+"/";
++  curl_easy_setopt(curl,CURLOPT_URL,url.c_str());curl_easy_setopt(curl,CURLOPT_PROXY,"");
++  curl_easy_setopt(curl,CURLOPT_HTTPHEADER,headers);curl_easy_setopt(curl,CURLOPT_POSTFIELDS,body.c_str());
++  curl_easy_setopt(curl,CURLOPT_POSTFIELDSIZE,long(body.size()));curl_easy_setopt(curl,CURLOPT_TIMEOUT_MS,3000L);curl_easy_setopt(curl,CURLOPT_CONNECTTIMEOUT_MS,1000L);curl_easy_setopt(curl,CURLOPT_NOSIGNAL,1L);
++  curl_easy_setopt(curl,CURLOPT_WRITEDATA,&response);
++  curl_easy_setopt(curl,CURLOPT_WRITEFUNCTION,+[](char *data,size_t size,size_t count,void *ctx)->size_t {
++    auto &out=*static_cast<std::string*>(ctx);if (count>1024*1024 || size>1024*1024 || size*count>1024*1024-out.size()) return 0;
++    out.append(data,size*count);return size*count;
++  });
++  const auto result=curl_easy_perform(curl);curl_slist_free_all(headers);curl_easy_cleanup(curl);
++  if (result!=CURLE_OK) return {{"ok",false},{"error","Clipboard helper unavailable"}};
++  return nlohmann::json::parse(response);
++}
++}
++#endif

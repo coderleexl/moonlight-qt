@@ -22,3 +22,7 @@ if grep -E '=> not found|=> /(ucrt64|mingw64|clang64)/bin/' build/sunshine-linka
   echo 'Sunshine has unpackaged runtime dependencies' >&2
   exit 1
 fi
+
+# Keep test headers outside the shipped host payload. setup-msys2 chooses its own root.
+mkdir -p build/native-test-deps/include
+cp -a "${MINGW_PREFIX:?}/include/nlohmann" build/native-test-deps/include/

@@ -161,3 +161,9 @@ void NativeActivity::notice(const QString& message)
               { "detail", message }, { "speed", 0 }, { "committing", false } };
     save();
 }
+
+void NativeActivity::clearNotice()
+{
+    if (m_Jobs.remove("clipboard"))
+        save();
+}

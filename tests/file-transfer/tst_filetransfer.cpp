@@ -122,6 +122,25 @@ private slots:
         QVERIFY(result["ok"].toBool());QCOMPARE(read(target.filePath("renamed.bin")),bytes);
         QVERIFY(store.bytesRead()>0);
     }
+#ifdef Q_OS_MACOS
+    void nativeClipboardPublishesSelections() {
+        QTemporaryDir root;
+        write(root.filePath("jira.exe"), QByteArray(600000, 'e'));
+        write(root.filePath("中文 文件.txt"), "unicode file");
+        NativeOfferStore store;
+        auto offer = store.publish({root.filePath("jira.exe"), root.filePath("中文 文件.txt")});
+        QVERIFY(offer["ok"].toBool());
+        auto result = nativeClipboardProbe(offer, [&](const QString& id, qint64 offset, int length) {
+            return store.read(offer["id"].toString(), id, offset, length);
+        });
+        QVERIFY2(result["ok"].toBool(), QJsonDocument(result).toJson().constData());
+        QVERIFY(result["owned"].toBool());
+        QCOMPARE(result["urls"].toInt(), 2);
+        QVERIFY(result["replaced"].toBool());
+        QVERIFY(result["ownedAfterReplace"].toBool());
+        QCOMPARE(store.bytesRead(), qint64(0));
+    }
+#endif
     void uploadFromSystemFileUrls() {
         QTemporaryDir remote, local;
         FileServer server(remote.path()); QVERIFY(server.listen(QHostAddress::LocalHost));

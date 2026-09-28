@@ -10,6 +10,7 @@ public:
     ~NativeActivity() override;
     NativeRead track(const QJsonObject& offer, NativeRead reader, bool upload);
     void notice(const QString& message);
+    void clearNotice();
     static QString peerKey(const QUrl& filesUrl, const QByteArray& certificate);
     static QString directory();
 

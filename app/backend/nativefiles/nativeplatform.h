@@ -13,6 +13,7 @@ class NativeFilePlatform : public QObject {
 public:
     using QObject::QObject;
     virtual void setAgentMode() { }
+    virtual qint64 clipboardRevision() const { return 0; }
     virtual bool pendingDrag() const { return false; }
     virtual bool supported() const = 0;
     virtual QStringList copiedFiles() const = 0;
@@ -27,5 +28,8 @@ signals:
 };
 #ifdef DESK_NATIVE_TESTS
 QJsonObject nativeAdapterProbe(const QJsonObject& offer, NativeRead read, const QString& destination);
+#ifdef Q_OS_MACOS
+QJsonObject nativeClipboardProbe(const QJsonObject& offer, NativeRead read);
+#endif
 #endif
 #endif

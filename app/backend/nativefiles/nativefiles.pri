@@ -21,3 +21,4 @@ macx {
     SOURCES += $$PWD/platform_x11.cpp
 }
 HEADERS += $$PWD/processutils.h
+HEADERS += $$PWD/clipboardpublication.h

@@ -1,6 +1,7 @@
 #include "backend/nativefiles/activity.h"
 #include "backend/nativefiles/bridgehttp.h"
 #include "backend/nativefiles/clipboardbroker.h"
+#include "backend/nativefiles/clipboardpublication.h"
 #include "backend/nativefiles/jsontransport.h"
 #include "backend/nativefiles/materialize.h"
 #include "backend/nativefiles/offerstore.h"
@@ -21,6 +22,28 @@ class NativeFilesTest : public QObject {
         QCOMPARE(f.write(bytes), qint64(bytes.size()));
     }
 private slots:
+    void clipboardPublicationRetriesWithoutReplacingLocalCopies()
+    {
+        ClipboardPublication publication;
+        QVERIFY(publication.begin("remote-exe", 0));
+        // An OS write failure leaves the same offer eligible after the delay.
+        QVERIFY(!publication.begin("remote-exe", 999));
+        QVERIFY(publication.begin("remote-exe", 1000));
+        publication.succeeded();
+        QVERIFY(!publication.begin("remote-exe", 3000));
+        QVERIFY(publication.begin("next-copy", 3000));
+        publication.localCopy();
+        QVERIFY(!publication.begin("next-copy", 5000));
+        QVERIFY(publication.begin("new-remote-copy", 5000));
+        QVERIFY(publication.begin("new-remote-copy", 6000));
+        QVERIFY(publication.begin("new-remote-copy", 7000));
+        QVERIFY(!publication.begin("new-remote-copy", 9000));
+        QVERIFY(publication.begin("", 9000));
+        publication.succeeded();
+        QVERIFY(publication.begin("new-remote-copy", 10000));
+        publication.rejected();
+        QVERIFY(!publication.begin("new-remote-copy", 12000));
+    }
     void activityProgressAndCancellation()
     {
         QStandardPaths::setTestModeEnabled(true);

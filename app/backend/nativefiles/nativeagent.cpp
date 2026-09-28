@@ -3,6 +3,7 @@
 #include "activity.h"
 #include "bridgehttp.h"
 #include "clipboardbroker.h"
+#include "clipboardpublication.h"
 #include "jsontransport.h"
 #include "nativeplatform.h"
 #include <QClipboard>
@@ -227,13 +228,27 @@ int NativeAgent::run(const QStringList& args)
     NativeRead outgoingRead;
     QObject context;
     NativeOfferStore local;
-    QString lease, remoteId;
+    QString lease;
+    ClipboardPublication publication;
+    QElapsedTimer publicationClock;
+    publicationClock.start();
+    bool publishing = false;
     QJsonObject outgoing;
     bool changed = false, inflight = false;
     QJsonArray responses;
-    QObject::connect(clipboard, &QClipboard::dataChanged, &context, [&] {
-        if (lease.isEmpty() || platform->ownsClipboard())
+#ifdef Q_OS_MACOS
+    auto clipboardRevision = platform->clipboardRevision();
+#endif
+    auto localClipboardChanged = [&] {
+#ifdef Q_OS_MACOS
+        const auto revision = platform->clipboardRevision();
+        if (revision == clipboardRevision)
             return;
+        clipboardRevision = revision;
+#endif
+        if (lease.isEmpty() || publishing || platform->ownsClipboard())
+            return;
+        publication.localCopy();
         auto files = platform->copiedFiles();
         outgoing = files.isEmpty() ? QJsonObject() : local.publish(files);
         if (!outgoing["ok"].toBool()) {
@@ -248,7 +263,16 @@ int NativeAgent::run(const QStringList& args)
                 const QString& file, qint64 offset, int length) { return local.read(id, file, offset, length); },
             true);
         changed = true;
-    });
+    };
+    QObject::connect(clipboard, &QClipboard::dataChanged, &context, localClipboardChanged);
+#ifdef Q_OS_MACOS
+    // Qt Cocoa emits external clipboard changes when its application activates.
+    // This accessory helper stays in the background, so also watch changeCount.
+    QTimer clipboardWatch;
+    clipboardWatch.setInterval(200);
+    QObject::connect(&clipboardWatch, &QTimer::timeout, &context, localClipboardChanged);
+    clipboardWatch.start();
+#endif
     QTimer poll;
     poll.setInterval(200);
     QObject::connect(&poll, &QTimer::timeout, &context, [&] {
@@ -271,12 +295,17 @@ int NativeAgent::run(const QStringList& args)
             }
             auto offer = result["offer"].toObject();
             auto id = offer["id"].toString();
-            if (id != remoteId) {
-                remoteId = id;
-                if (offer.isEmpty())
+            if (publication.begin(id, publicationClock.elapsed())) {
+                publishing = true;
+                if (offer.isEmpty()) {
                     platform->revoke();
-                else if (!NativeOfferStore::validManifest(offer)
-                    || !platform->publish(offer,
+                    publication.succeeded();
+                } else if (!NativeOfferStore::validManifest(offer)) {
+                    platform->revoke();
+                    publication.rejected();
+                    qWarning() << "Remote clipboard file manifest rejected; entries:" << offer["entries"].toArray().size();
+                    activity.notice("The remote file list is invalid or exceeds the supported limits");
+                } else if (!platform->publish(offer,
                         activity.track(
                             offer,
                             [remote, lease, id](const QString& file, qint64 offset, int length) {
@@ -285,8 +314,19 @@ int NativeAgent::run(const QStringList& args)
                             },
                             false))) {
                     platform->revoke();
+                    qWarning() << "OS clipboard publication failed; entries:" << offer["entries"].toArray().size();
                     activity.notice("Cannot publish the remote file selection to the system clipboard");
+                } else {
+                    publication.succeeded();
+                    activity.clearNotice();
+                    qInfo() << "Remote clipboard files published; entries:" << offer["entries"].toArray().size();
                 }
+                publishing = false;
+#ifdef Q_OS_MACOS
+                // Our own clear/write (including a failed write) isn't a user
+                // copy and must not cancel the scheduled publication retry.
+                clipboardRevision = platform->clipboardRevision();
+#endif
             }
             for (auto v : result["requests"].toArray()) {
                 const auto r = v.toObject();

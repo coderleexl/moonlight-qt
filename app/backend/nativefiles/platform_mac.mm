@@ -5,6 +5,7 @@
 #import <CoreServices/CoreServices.h>
 #include <QClipboard>
 #include <QDateTime>
+#include <QDebug>
 #include <QFile>
 #include <QGuiApplication>
 #include <QMimeData>
@@ -140,6 +141,7 @@ struct MacOffer {
 @end
 namespace {
 class MacFiles final : public NativeFilePlatform {
+    NSPasteboard* pasteboard;
     std::shared_ptr<MacOffer> clipboardOffer, dragOffer;
     NSMutableArray* pasteProviders = [NSMutableArray new];
     NSMutableArray* dragProviders = [NSMutableArray new];
@@ -216,7 +218,8 @@ class MacFiles final : public NativeFilePlatform {
     }
 
 public:
-    MacFiles()
+    explicit MacFiles(NSPasteboard* board = NSPasteboard.generalPasteboard)
+        : pasteboard(board)
     {
         FSEventStreamContext context { 0, this, nullptr, nullptr, nullptr };
         NSArray* roots = @[ @"/" ];
@@ -237,12 +240,13 @@ public:
         }
     }
     void setAgentMode() override { [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory]; }
+    qint64 clipboardRevision() const override { return qint64(pasteboard.changeCount); }
     bool pendingDrag() const override { return dragOffer && dragOffer->busy(); }
     bool supported() const override { return events != nullptr; }
     bool ownsClipboard() const override
     {
         return clipboardOffer &&
-            [[NSPasteboard.generalPasteboard stringForType:marker]
+            [[pasteboard stringForType:marker]
                 isEqualToString:ns(clipboardOffer->manifest["id"].toString())];
     }
     QStringList copiedFiles() const override
@@ -250,7 +254,7 @@ public:
         QStringList paths;
         if (ownsClipboard())
             return paths;
-        NSArray* urls = [NSPasteboard.generalPasteboard readObjectsForClasses:@[ [NSURL class] ]
+        NSArray* urls = [pasteboard readObjectsForClasses:@[ [NSURL class] ]
                                                                       options:@{
                                                                           NSPasteboardURLReadingFileURLsOnlyKey : @YES
                                                                       }];
@@ -264,7 +268,7 @@ public:
         if (clipboardOffer) {
             clipboardOffer->active = false;
             if (ownsClipboard())
-                [NSPasteboard.generalPasteboard clearContents];
+                [pasteboard clearContents];
             clipboardOffer.reset();
         }
         [pasteProviders removeAllObjects];
@@ -293,8 +297,12 @@ public:
             [items addObject:item];
             [pasteProviders addObject:provider];
         }
-        [NSPasteboard.generalPasteboard clearContents];
-        return [NSPasteboard.generalPasteboard writeObjects:items];
+        [pasteboard clearContents];
+        const bool written = [pasteboard writeObjects:items];
+        if (!written)
+            qWarning() << "macOS pasteboard writeObjects failed; items:" << int(items.count)
+                       << "changeCount:" << qint64(pasteboard.changeCount);
+        return written;
     }
     bool drag(const QJsonObject& offer, NativeRead read, QWindow* window) override
     {
@@ -341,6 +349,23 @@ public:
 std::unique_ptr<NativeFilePlatform> NativeFilePlatform::create() { return std::make_unique<MacFiles>(); }
 
 #ifdef DESK_NATIVE_TESTS
+QJsonObject nativeClipboardProbe(const QJsonObject& offer, NativeRead read)
+{
+    NSPasteboard* board = [NSPasteboard pasteboardWithUniqueName];
+    QJsonObject result;
+    {
+        MacFiles platform(board);
+        const bool published = platform.publish(offer, read);
+        NSArray* urls = [board readObjectsForClasses:@[ [NSURL class] ]
+                                            options:@{ NSPasteboardURLReadingFileURLsOnlyKey : @YES }];
+        result = { { "ok", published }, { "owned", platform.ownsClipboard() }, { "urls", int(urls.count) } };
+        // Replacing an offer must also work without retaining expired providers.
+        result["replaced"] = platform.publish(offer, read);
+        result["ownedAfterReplace"] = platform.ownsClipboard();
+    }
+    [board releaseGlobally];
+    return result;
+}
 QJsonObject nativeAdapterProbe(const QJsonObject& offer, NativeRead read, const QString& destination)
 {
     auto selection = std::make_shared<MacOffer>();

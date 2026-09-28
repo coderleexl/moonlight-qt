@@ -7,6 +7,7 @@ Never reads the user's Desk configuration or sends passwords over HTTP.
 import datetime
 import base64
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -132,11 +133,17 @@ def test_file_transfer(directory, context, server_pem):
     unpaired.check_hostname = False
     unpaired.load_verify_locations(cadata=server_pem.decode())
     unpaired.load_cert_chain(unknown / 'client.pem', unknown / 'client.key')
-    denied = files({'op': 'list', 'path': ''}, unpaired)
-    assert ET.fromstring(denied).get('status_code') == '401', 'Unpaired certificate accessed file endpoint'
-
-    denied_clipboard = files({'op': 'open'}, unpaired, 'clipboard')
-    assert ET.fromstring(denied_clipboard).get('status_code') == '401', 'Unpaired certificate accessed clipboard endpoint'
+    # Sunshine rejects unknown certificates immediately after the TLS handshake,
+    # before reading or routing any HTTP request (including files/clipboard).
+    # Sending a POST here races that close and can raise BrokenPipeError instead
+    # of letting urllib read the rejection. Read the early response directly;
+    # a disconnect, TLS failure or arbitrary response must NOT count as success.
+    with socket.create_connection(('127.0.0.1', 48984), timeout=10) as connection:
+        with unpaired.wrap_socket(connection, server_hostname='localhost') as rejected:
+            with http.client.HTTPResponse(rejected) as response:
+                response.begin()
+                denied = ET.fromstring(response.read())
+                assert denied.get('status_code') == '401', 'Unpaired certificate was not explicitly rejected'
     for operation in ('open', 'exchange', 'read'):
         result = json.loads(files({'op': operation}, route='clipboard'))
         assert not result['ok'] and result['error'] == 'An active streaming session is required', result

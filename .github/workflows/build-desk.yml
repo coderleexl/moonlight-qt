@@ -2,6 +2,13 @@ name: Desk Build and Release
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Build all platforms or only Debian 13 (Artifacts only)
+        type: choice
+        options:
+          - all
+          - linux-debian13
+        default: all
       publish:
         description: Publish all tested packages to GitHub Releases
         type: boolean
@@ -20,24 +27,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: windows
-            package: windows
-            os: windows-2025
-            arch: x64
-          - platform: macos
-            package: macos
-            os: macos-26
-            arch: arm64
-          - platform: linux
-            package: linux-ubuntu24.04
-            os: ubuntu-24.04
-            arch: amd64
-          - platform: linux
-            package: linux-debian13
-            os: ubuntu-24.04
-            arch: amd64
-            container: debian:13
+        include: >-
+          ${{ fromJSON(inputs.target == 'linux-debian13' &&
+          '[{"platform":"linux","package":"linux-debian13","os":"ubuntu-24.04","arch":"amd64","container":"debian:13"}]' ||
+          '[{"platform":"windows","package":"windows","os":"windows-2025","arch":"x64"},
+            {"platform":"macos","package":"macos","os":"macos-26","arch":"arm64"},
+            {"platform":"linux","package":"linux-ubuntu24.04","os":"ubuntu-24.04","arch":"amd64"},
+            {"platform":"linux","package":"linux-debian13","os":"ubuntu-24.04","arch":"amd64","container":"debian:13"}]') }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
     timeout-minutes: 100
@@ -292,17 +288,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - test: debian13-ffmpeg7.1.3
-            package: linux-debian13
-            container: debian:13
-            ffmpeg_baseline: true
-          - test: debian13-current
-            package: linux-debian13
-            container: debian:13
-          - test: ubuntu24.04-current
-            package: linux-ubuntu24.04
-            container: ubuntu:24.04
+        include: >-
+          ${{ fromJSON(inputs.target == 'linux-debian13' &&
+          '[{"test":"debian13-ffmpeg7.1.3","package":"linux-debian13","container":"debian:13","ffmpeg_baseline":true},
+            {"test":"debian13-current","package":"linux-debian13","container":"debian:13"}]' ||
+          '[{"test":"debian13-ffmpeg7.1.3","package":"linux-debian13","container":"debian:13","ffmpeg_baseline":true},
+            {"test":"debian13-current","package":"linux-debian13","container":"debian:13"},
+            {"test":"ubuntu24.04-current","package":"linux-ubuntu24.04","container":"ubuntu:24.04"}]') }}
     timeout-minutes: 15
     env:
       DEBIAN_FRONTEND: noninteractive
@@ -336,7 +328,7 @@ jobs:
   release:
     name: Publish and verify Release
     needs: [build, test-linux-install]
-    if: github.event_name == 'push' || inputs.publish
+    if: github.event_name == 'push' || (inputs.publish && inputs.target == 'all')
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QNetworkProxy>
+#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QSslConfiguration>
 #include <QSslKey>
@@ -37,7 +38,6 @@ FileTransfer::FileTransfer(const QString& host, quint16 port, const QSslCertific
     : QObject(parent), m_Certificate(certificate)
 {
     m_Url.setScheme("https"); m_Url.setHost(host); m_Url.setPort(port); m_Url.setPath("/desk/files");
-    m_Network.setProxy(QNetworkProxy::NoProxy);
     m_HistoryKey = "fileTransfer/history/" + QString::fromLatin1(QCryptographicHash::hash(m_Url.toEncoded() + certificate.toDer(), QCryptographicHash::Sha256).toHex());
     const auto history = QSettings().value(m_HistoryKey).toList();
     for (const auto& entry : history) {
@@ -164,7 +164,12 @@ void FileTransfer::request(QJsonObject object, Callback callback)
     auto ssl = IdentityManager::get()->getSslConfig();
     ssl.setPeerVerifyMode(QSslSocket::VerifyPeer);
     request.setSslConfiguration(ssl);
-    auto reply = m_Network.post(request, QJsonDocument(object).toJson(QJsonDocument::Compact));
+    // The host closes every request to recheck the paired certificate. A shared
+    // Qt connection pool can reuse a socket before that close is observed.
+    // Keep each operation's connection lifetime independent, like NativeTransport.
+    auto network = new QNetworkAccessManager(this);
+    network->setProxy(QNetworkProxy::NoProxy);
+    auto reply = network->post(request, QJsonDocument(object).toJson(QJsonDocument::Compact));
     reply->setReadBufferSize(1024 * 1024);
     auto buffer = std::make_shared<QByteArray>();
     auto verified = std::make_shared<bool>(false);
@@ -182,7 +187,7 @@ void FileTransfer::request(QJsonObject object, Callback callback)
         if (buffer->size() > 1024 * 1024) reply->abort();
     });
     QTimer::singleShot(30000, reply, [reply] { if (!reply->isFinished()) reply->abort(); });
-    connect(reply, &QNetworkReply::finished, this, [this, reply, buffer, verified, callback] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, network, buffer, verified, callback] {
         buffer->append(reply->readAll());
         QJsonObject result;
         if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 404) {
@@ -193,7 +198,7 @@ void FileTransfer::request(QJsonObject object, Callback callback)
             result = QJsonDocument::fromJson(*buffer).object();
             if (!result.contains("ok")) result = {{"ok", false}, {"error", tr("The remote host does not support file transfer. Update Desk on both computers and restart hosting.")}};
         }
-        reply->deleteLater(); callback(result);
+        network->deleteLater(); callback(result);
     });
 }
 void FileTransfer::perform(JobPtr job, QJsonObject object, Callback callback)

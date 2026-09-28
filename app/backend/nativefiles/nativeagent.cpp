@@ -251,7 +251,7 @@ int NativeAgent::run(const QStringList& args)
         publication.localCopy();
         auto files = platform->copiedFiles();
         outgoing = files.isEmpty() ? QJsonObject() : local.publish(files);
-        if (!outgoing["ok"].toBool()) {
+        if (!outgoing.value("ok").toBool()) {
             if (!files.isEmpty())
                 activity.notice(outgoing["error"].toString());
             outgoing = {};
@@ -259,7 +259,7 @@ int NativeAgent::run(const QStringList& args)
         }
         outgoingRead = activity.track(
             outgoing,
-            [&local, id = outgoing["id"].toString()](
+            [&local, id = outgoing.value("id").toString()](
                 const QString& file, qint64 offset, int length) { return local.read(id, file, offset, length); },
             true);
         changed = true;
@@ -293,8 +293,8 @@ int NativeAgent::run(const QStringList& args)
                 QCoreApplication::quit();
                 return;
             }
-            auto offer = result["offer"].toObject();
-            auto id = offer["id"].toString();
+            const auto offer = result.value("offer").toObject();
+            const auto id = offer.value("id").toString();
             if (publication.begin(id, publicationClock.elapsed())) {
                 publishing = true;
                 if (offer.isEmpty()) {
@@ -330,7 +330,7 @@ int NativeAgent::run(const QStringList& args)
             }
             for (auto v : result["requests"].toArray()) {
                 const auto r = v.toObject();
-                auto answer = outgoingRead && r["offer"] == outgoing["id"]
+                auto answer = outgoingRead && r["offer"] == outgoing.value("id")
                     ? outgoingRead(r["file"].toString(), r["offset"].toVariant().toLongLong(), r["length"].toInt())
                     : QJsonObject { { "ok", false }, { "error", "Selection expired" } };
                 answer["request"] = r["request"];

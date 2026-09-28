@@ -2,7 +2,6 @@
 #define DESK_FILETRANSFER_H
 #include <QObject>
 #include <QVariantList>
-#include <QNetworkAccessManager>
 #include <QSslCertificate>
 #include <QJsonObject>
 #include <QElapsedTimer>
@@ -101,7 +100,6 @@ private:
     QVariantList m_NativeJobs;
     bool m_NativePending = false;
     void refreshNativeJobs();
-    QNetworkAccessManager m_Network;
     QUrl m_Url;
     QSslCertificate m_Certificate;
     QString m_LocalPath, m_RemotePath, m_RemoteRoot, m_Error, m_Conflict, m_HistoryKey;

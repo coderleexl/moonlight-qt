@@ -10,6 +10,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QStandardPaths>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -22,6 +23,31 @@ class NativeFilesTest : public QObject {
         QCOMPARE(f.write(bytes), qint64(bytes.size()));
     }
 private slots:
+    void clearingClipboardKeepsAnEmptyManifest()
+    {
+        ClipboardBroker broker;
+        auto call = [&](QJsonObject request) {
+            QJsonObject result;
+            broker.execute("peer", request, [&](QJsonObject r) { result = r; });
+            return result;
+        };
+        const auto lease = call({{"op", "open"}}).value("lease");
+        QTemporaryDir root;
+        write(root.filePath("jira.exe"), "test executable contents");
+        NativeOfferStore store;
+        const auto offer = store.publish({root.filePath("jira.exe")});
+        QVERIFY(offer.value("ok").toBool());
+        QVERIFY(call({{"op", "exchange"}, {"lease", lease}, {"offer", offer}}).value("ok").toBool());
+        QSignalSpy changed(&broker, &ClipboardBroker::remoteChanged);
+        QVERIFY(call({{"op", "exchange"}, {"lease", lease}, {"offer", QJsonObject()}}).value("ok").toBool());
+        QCOMPARE(changed.size(), 1);
+        QVERIFY(changed.first().first().toJsonObject().isEmpty());
+        QVERIFY(broker.remoteOffer().isEmpty());
+        // Clearing twice is harmless and must not end the session.
+        QVERIFY(call({{"op", "exchange"}, {"lease", lease}, {"offer", QJsonObject()}}).value("ok").toBool());
+        QCOMPARE(changed.size(), 1);
+        QVERIFY(call({{"op", "exchange"}, {"lease", lease}, {"offer", offer}}).value("ok").toBool());
+    }
     void clipboardPublicationRetriesWithoutReplacingLocalCopies()
     {
         ClipboardPublication publication;

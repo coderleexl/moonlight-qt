@@ -54,7 +54,7 @@ void ClipboardBroker::publish(const QStringList& files)
 void ClipboardBroker::requestClient(const QString& offer, const QString& file, qint64 offset, int length, Reply reply)
 {
     expire();
-    if (m_Owner.isEmpty() || offer.isEmpty() || offer != m_Remote["id"].toString() || m_Pending.size() >= 2
+    if (m_Owner.isEmpty() || offer.isEmpty() || offer != m_Remote.value("id").toString() || m_Pending.size() >= 2
         || offset < 0 || length < 0 || length > 256 * 1024) {
         reply(failure("Selection unavailable"));
         return;
@@ -118,12 +118,12 @@ void ClipboardBroker::execute(const QString& peer, const QJsonObject& r, Reply r
         return;
     }
     if (r.contains("offer")) {
-        auto offer = r["offer"].toObject();
+        const auto offer = r.value("offer").toObject();
         if (!offer.isEmpty() && !NativeOfferStore::validManifest(offer)) {
             reply(failure("Invalid file manifest"));
             return;
         }
-        if (offer["id"] != m_Remote["id"]) {
+        if (offer.value("id") != m_Remote.value("id")) {
             m_Remote = offer;
             const auto pending = std::exchange(m_Pending, {});
             for (auto p : pending)

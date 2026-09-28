@@ -13,6 +13,7 @@
 #include <QQuickItem>
 #include <QQuickStyle>
 #include <QTranslator>
+#include <QTimer>
 #include "backend/filetransfer.h"
 #include "backend/nativefiles/offerstore.h"
 #include "backend/nativefiles/jsontransport.h"
@@ -25,6 +26,7 @@ public:
     desk_files::Service service;
     QSslConfiguration identity;
     int requests = 0;
+    bool delayedClose = false;
     explicit FileServer(const QString& root) : service(std::filesystem::u8path(root.toUtf8().constData())), identity(IdentityManager::get()->getSslConfig()) {}
     void incomingConnection(qintptr descriptor) override {
         auto socket = new QSslSocket(this);
@@ -35,18 +37,25 @@ public:
             if (socket->peerCertificate() == identity.localCertificate()) socket->ignoreSslErrors(errors);
         });
         auto buffer = std::make_shared<QByteArray>();
-        connect(socket, &QSslSocket::readyRead, socket, [this, socket, buffer] {
+        auto handled = std::make_shared<bool>(false);
+        connect(socket, &QSslSocket::readyRead, socket, [this, socket, buffer, handled] {
+            if (*handled) { socket->abort(); return; }
             buffer->append(socket->readAll());
             auto split = buffer->indexOf("\r\n\r\n"); if (split < 0) return;
             qint64 length = 0;
             for (auto line : buffer->left(split).split('\n')) if (line.toLower().startsWith("content-length:")) length = line.mid(15).trimmed().toLongLong();
             if (buffer->size() < split + 4 + length) return;
+            *handled = true;
             ++requests;
             QByteArray result;
             try { result = QByteArray::fromStdString(service.execute(desk_files::json::parse(buffer->mid(split + 4, length).toStdString())).dump()); }
             catch (...) { result = "{\"ok\":false,\"error\":\"Malformed request\"}"; }
-            socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: " + QByteArray::number(result.size()) + "\r\n\r\n" + result);
-            socket->disconnectFromHost();
+            socket->write(QByteArray("HTTP/1.1 200 OK\r\n") + (delayedClose ? "" : "Connection: close\r\n")
+                + "Content-Type: application/json\r\nContent-Length: " + QByteArray::number(result.size()) + "\r\n\r\n" + result);
+            if (delayedClose)
+                QTimer::singleShot(100, socket, &QSslSocket::disconnectFromHost);
+            else
+                socket->disconnectFromHost();
         });
         connect(socket, &QSslSocket::disconnected, socket, &QObject::deleteLater);
         socket->startServerEncryption();
@@ -152,6 +161,24 @@ private slots:
         QCOMPARE(read(remote.filePath("from-finder.txt")),QByteArray("system file"));
         client.uploadFiles({QUrl("https://example.com/not-a-local-file")});
         QVERIFY(!client.error().isEmpty());
+    }
+    void downloadFromHostClosingEachRequest() {
+        QTemporaryDir remote, local;
+        const QByteArray contents(2 * 1024 * 1024 + 23, 'e');
+        write(remote.filePath("jira.exe"), contents);
+        FileServer server(remote.path());
+        // Match the host's framed response without a Connection header. The
+        // delayed close must never turn the next chunk into a reused request.
+        server.delayedClose = true;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        FileTransfer client("127.0.0.1", server.serverPort(), server.identity.localCertificate());
+        client.setProperty("limitMiB", 0);
+        QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 10000);
+        client.browseLocal(local.path());
+        client.enqueue(false, {"jira.exe"});
+        QTRY_VERIFY_WITH_TIMEOUT(!client.busy(), 10000);
+        QCOMPARE(client.jobs().first().toMap()["state"].toString(), QString("done"));
+        QCOMPARE(read(local.filePath("jira.exe")), contents);
     }
     void uploadDownloadFoldersAndConflicts() {
         QTemporaryDir remote, local, destination;

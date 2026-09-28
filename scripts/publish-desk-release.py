@@ -54,9 +54,11 @@ else:
     subprocess.run(['git', 'tag', tag, sha], check=True)
     subprocess.run(['git', 'push', 'origin', f'refs/tags/{tag}'], check=True)
 notes = root / 'release-notes.md'
+changes_path = Path('packaging/release-notes') / f'{version}.md'
+changes = changes_path.read_text(encoding='utf-8').strip() + '\n\n' if changes_path.is_file() else ''
 notes.write_text(f'''## Desk {version}
 
-同一提交构建的三个平台版本，均内置从源码编译的 Sunshine。
+{changes}同一提交构建的三个平台版本，均内置从源码编译的 Sunshine。
 
 | 平台 | 下载 |
 | --- | --- |

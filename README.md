@@ -8,6 +8,15 @@
 
 [下载 Desk](https://github.com/coderleexl/moonlight-qt/releases) · [本仓库源码](https://github.com/coderleexl/moonlight-qt) · [问题反馈](https://github.com/coderleexl/moonlight-qt/issues)
 
+### 6.5.0 更新
+
+- 修复空文件剪贴板清单被误判为非法清单，导致复制粘贴通道退出的问题。
+- 修复文件窗口复用已关闭的 HTTPS 连接，导致分块下载中断的问题。
+- macOS 后台检测文件剪贴板变化，系统剪贴板写入失败时有限重试，并提供更明确的错误信息。
+- 包含主机进程生命周期、游戏鼠标模式悬浮栏及 Debian 13 FFmpeg 7.1.3 兼容性修复。
+
+建议两端升级后重新启动主机服务。文件窗口仍仅浏览远端配置的共享目录；从远程画面直接拖出文件尚不支持。
+
 ### 运行界面预览
 
 以下截图由实际 QML 界面运行渲染，设备列表与能力参数使用示例数据。

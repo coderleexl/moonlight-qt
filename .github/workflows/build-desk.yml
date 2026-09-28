@@ -3,10 +3,11 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Build all platforms or only Debian 13 (Artifacts only)
+        description: Build all platforms or one target (single target uses Artifacts only)
         type: choice
         options:
           - all
+          - macos
           - linux-debian13
         default: all
       publish:
@@ -28,7 +29,9 @@ jobs:
       fail-fast: false
       matrix:
         include: >-
-          ${{ fromJSON(inputs.target == 'linux-debian13' &&
+          ${{ fromJSON(inputs.target == 'macos' &&
+          '[{"platform":"macos","package":"macos","os":"macos-26","arch":"arm64"}]' ||
+          inputs.target == 'linux-debian13' &&
           '[{"platform":"linux","package":"linux-debian13","os":"ubuntu-24.04","arch":"amd64","container":"debian:13"}]' ||
           '[{"platform":"windows","package":"windows","os":"windows-2025","arch":"x64"},
             {"platform":"macos","package":"macos","os":"macos-26","arch":"arm64"},
@@ -283,6 +286,7 @@ jobs:
   test-linux-install:
     name: Clean install ${{ matrix.test }}
     needs: build
+    if: github.event_name == 'push' || inputs.target != 'macos'
     runs-on: ubuntu-24.04
     container: ${{ matrix.container }}
     strategy:

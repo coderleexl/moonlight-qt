@@ -104,6 +104,9 @@ signals:
     void conflictChanged();
     void limitChanged();
     void folderChanged();
+    void localBrowseSucceeded();
+    void remoteBrowseSucceeded();
+    void folderBrowseSucceeded();
 private:
     struct Job {
         bool upload = true, directory = false, cancelled = false, committing = false;
@@ -132,7 +135,7 @@ private:
     void setError(const QString& message);
     void saveHistory();
     void initializeRemote();
-    QString normalizeRemotePath(const QString& path) const;
+    bool normalizeRemotePath(const QString& path, QString& normalized, QString& error) const;
     QString remoteParent(const QString& path) const;
     static QVariantList readLocalDirectory(const QString& path, QString& canonical, QString& error, bool foldersOnly = false);
     static QVariantList remoteDirectoryEntries(const QJsonObject& result, bool foldersOnly = false);

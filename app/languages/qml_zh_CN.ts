@@ -2138,6 +2138,18 @@
         <source>The transfer process ended. Copy or drag the files again to retry.</source>
         <translation>传输进程已结束，请重新复制或拖动文件。</translation>
     </message>
+    <message>
+        <source>Enter an absolute path on the remote computer.</source>
+        <translation>请输入远端电脑的绝对路径。</translation>
+    </message>
+    <message>
+        <source>Invalid remote path. Use a folder path without . or .. components.</source>
+        <translation>远端路径无效，请使用不含 . 或 .. 层级的目录路径。</translation>
+    </message>
+    <message>
+        <source>This path is outside the remote shared folder (%1). Enable all disks and folders on the remote computer, then reopen file transfer.</source>
+        <translation>此路径不在远端共享目录（%1）内。请在远端开启“全部磁盘和目录”，再重新打开文件传输。</translation>
+    </message>
 </context>
 <context>
     <name>FileTransferWindow</name>
@@ -2333,6 +2345,38 @@
         <source>Upload %1 items</source>
         <translation>上传 %1 项</translation>
     </message>
+    <message>
+        <source>1. Open This computer → Stop hosting.
+2. Set File transfer access → All disks and folders.
+3. Start hosting, then reopen this file transfer window.</source>
+        <translation>1. 打开“本机”页，停止服务。
+2. 将“文件传输范围”改为“全部磁盘和目录”。
+3. 启动服务，然后重新打开此文件传输窗口。</translation>
+    </message>
+    <message>
+        <source>Access other remote folders</source>
+        <translation>访问远端其他目录</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>If this setting is unavailable, update Desk on the remote computer.</source>
+        <translation>如果没有此设置，请先更新远端电脑上的 Desk。</translation>
+    </message>
+    <message>
+        <source>On the remote computer, open Desk and follow these steps:</source>
+        <translation>请在远端电脑打开 Desk，并按以下步骤操作：</translation>
+    </message>
+    <message>
+        <source>Shared folder only · other folders…</source>
+        <translation>仅共享目录 · 访问其他目录…</translation>
+    </message>
+    <message>
+        <source>This connection is limited to the remote shared folder. Entering an absolute path does not change this permission.</source>
+        <translation>当前连接仅能访问远端共享目录，输入绝对路径不会改变访问权限。</translation>
+    </message>
 </context>
 <context>
     <name>FileTransferPane</name>
@@ -2467,6 +2511,14 @@
     <message>
         <source>Upload to…</source>
         <translation>上传到…</translation>
+    </message>
+    <message>
+        <source>Other folders…</source>
+        <translation>访问其他目录…</translation>
+    </message>
+    <message>
+        <source>Shared folder only</source>
+        <translation>仅共享目录</translation>
     </message>
 </context>
     <context>

@@ -59,6 +59,7 @@ ApplicationWindow {
         destinationDialog.transferring = false;
         destinationDialog.destinationRemote = remote;
         destinationDialog.frozenNames = [];
+        folderPathField.text = remote ? transfer.remoteDisplayPath : transfer.localPath;
         transfer.openFolderPicker(remote, remote ? transfer.remotePath : transfer.localPath);
         destinationDialog.open();
     }
@@ -68,6 +69,7 @@ ApplicationWindow {
         destinationDialog.destinationRemote = !sourceRemote;
         destinationDialog.frozenNames = names.slice();
         destinationDialog.frozenSourcePath = sourcePath;
+        folderPathField.text = sourceRemote ? transfer.localPath : transfer.remoteDisplayPath;
         transfer.openFolderPicker(!sourceRemote, sourceRemote ? transfer.localPath : transfer.remotePath);
         destinationDialog.open();
     }
@@ -76,6 +78,12 @@ ApplicationWindow {
         folderDialog.picker = picker;
         folderName.clear();
         folderDialog.open();
+    }
+    function showScopeHelp() { scopeHelpDialog.open(); }
+
+    Connections {
+        target: transfer
+        function onFolderBrowseSucceeded() { folderPathField.text = transfer.folderDisplayPath; }
     }
 
     ColumnLayout {
@@ -311,7 +319,6 @@ ApplicationWindow {
                     objectName: "folderPathField"
                     Layout.fillWidth: true
                     implicitHeight: 38
-                    text: transfer.folderDisplayPath
                     selectByMouse: true
                     Accessible.name: qsTr("Destination folder")
                     font.pixelSize: 12
@@ -323,9 +330,22 @@ ApplicationWindow {
                     onClicked: transfer.browseFolderPicker(folderPathField.text)
                 }
             }
-            Label {
-                text: qsTr("Open a folder, then choose this location")
-                color: window.secondaryColor; font.pixelSize: 11
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Open a folder, then choose this location")
+                    color: window.secondaryColor; font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
+                ToolButton {
+                    objectName: "folderScopeHelpButton"
+                    visible: destinationDialog.destinationRemote && !transfer.remoteFilesystem
+                    text: qsTr("Shared folder only · other folders…")
+                    implicitHeight: 26
+                    font.pixelSize: 11
+                    onClicked: window.showScopeHelp()
+                }
             }
             Rectangle {
                 Layout.fillWidth: true
@@ -406,6 +426,50 @@ ApplicationWindow {
                     }
                 }
             }
+        }
+    }
+    Dialog {
+        id: scopeHelpDialog
+        objectName: "scopeHelpDialog"
+        anchors.centerIn: parent
+        width: Math.min(560, window.width - 64)
+        modal: true
+        title: qsTr("Access other remote folders")
+        padding: 20
+        background: Rectangle { color: window.cardColor; radius: 10; border.color: window.borderColor }
+        Overlay.modal: Rectangle { color: window.darkTheme ? "#99000000" : "#550C1B2F" }
+        header: Label {
+            text: scopeHelpDialog.title
+            color: window.textColor
+            font.pixelSize: 18; font.bold: true
+            leftPadding: 20; rightPadding: 20; topPadding: 18; bottomPadding: 10
+            wrapMode: Text.Wrap
+        }
+        ColumnLayout {
+            anchors.left: parent.left; anchors.right: parent.right
+            spacing: 12
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("This connection is limited to the remote shared folder. Entering an absolute path does not change this permission.")
+                color: window.textColor; wrapMode: Text.Wrap
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("On the remote computer, open Desk and follow these steps:")
+                color: window.textColor; wrapMode: Text.Wrap
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("1. Open This computer → Stop hosting.\n2. Set File transfer access → All disks and folders.\n3. Start hosting, then reopen this file transfer window.")
+                color: window.textColor; wrapMode: Text.Wrap
+                lineHeight: 1.35
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("If this setting is unavailable, update Desk on the remote computer.")
+                color: window.secondaryColor; wrapMode: Text.Wrap; font.pixelSize: 12
+            }
+            Button { Layout.alignment: Qt.AlignRight; text: qsTr("Close"); onClicked: scopeHelpDialog.close() }
         }
     }
     Dialog {

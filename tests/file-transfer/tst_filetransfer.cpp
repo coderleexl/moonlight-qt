@@ -29,6 +29,7 @@ public:
     int requests = 0;
     bool delayedClose = false;
     bool legacyProtocol = false;
+    QString advertisedRoot;
     QList<QJsonObject> operations;
     explicit FileServer(const QString& root, bool filesystemAccess = false)
         : service(std::filesystem::u8path(root.toUtf8().constData()), filesystemAccess),
@@ -59,6 +60,8 @@ public:
                 auto response = legacyProtocol && request.value("op", std::string()) == "capabilities"
                     ? desk_files::json { { "ok", false }, { "error", "Unknown operation" } }
                     : service.execute(request);
+                if (!advertisedRoot.isEmpty() && request.value("op", std::string()) == "list" && response.value("ok", false))
+                    response["root"] = advertisedRoot.toStdString();
                 if (legacyProtocol && request.value("op", std::string()) == "list" && response.value("ok", false))
                     response = { { "ok", true }, { "protocol", 1 }, { "root", response["root"] }, { "entries", response["entries"] } };
                 result = QByteArray::fromStdString(response.dump());
@@ -494,6 +497,219 @@ private slots:
             for (const auto& request : server.operations) QVERIFY(request["scope"] != "computer");
         }
     }
+    void absoluteRemotePathsKeepTheirMeaning_data() {
+        QTest::addColumn<QString>("accessMode");
+        QTest::addColumn<QString>("operation");
+        for (const auto& mode : {"shared", "legacy", "computer"}) {
+            for (const auto& operation : {"browse", "picker", "upload", "download", "file-urls"}) {
+                const auto name = QByteArray(mode) + '-' + operation;
+                QTest::newRow(name.constData()) << QString(mode) << QString(operation);
+            }
+        }
+    }
+    void absoluteRemotePathsKeepTheirMeaning() {
+        QFETCH(QString, accessMode);
+        QFETCH(QString, operation);
+        const bool computer = accessMode == "computer";
+        QTemporaryDir shared, outside, local, downloaded;
+        const QString target = computer ? QFileInfo(outside.path()).canonicalFilePath() : QString("/home/coderleex");
+        const QString trapRelative = computer && target.startsWith('/') ? target.mid(1) : QString("home/coderleex");
+        const QString trap = shared.filePath(trapRelative);
+        QVERIFY(QDir().mkpath(trap + "/trap-only-folder"));
+        write(trap + "/source.txt", "wrong shared-root source");
+        write(outside.filePath("source.txt"), "correct absolute source");
+        write(local.filePath("upload.txt"), "upload to absolute destination");
+        write(local.filePath("dropped.txt"), "drop to absolute destination");
+        FileServer server(shared.path(), computer);
+        server.legacyProtocol = accessMode == "legacy";
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        FileTransfer client("127.0.0.1", server.serverPort(), server.identity.localCertificate());
+        QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 10000);
+        const auto originalPath = client.remotePath();
+        const auto originalEntries = client.remoteEntries();
+        if (operation == "browse") {
+            client.browseRemote(target);
+            QTRY_VERIFY_WITH_TIMEOUT(!client.remoteLoading(), 5000);
+            if (computer) {
+                QCOMPARE(client.remotePath(), target);
+                QCOMPARE(client.remoteEntries().size(), 1);
+                QCOMPARE(client.remoteEntries().first().toMap()["name"].toString(), QString("source.txt"));
+            } else {
+                QVERIFY(!client.error().isEmpty());
+                QCOMPARE(client.remotePath(), originalPath);
+                QCOMPARE(client.remoteEntries(), originalEntries);
+            }
+        } else if (operation == "picker") {
+            client.openFolderPicker(true, originalPath);
+            QTRY_VERIFY_WITH_TIMEOUT(client.folderValid() && !client.folderLoading(), 5000);
+            client.browseFolderPicker(target);
+            QTRY_VERIFY_WITH_TIMEOUT(!client.folderLoading(), 5000);
+            QCOMPARE(client.folderValid(), computer);
+            QCOMPARE(client.folderPath(), computer ? target : originalPath);
+            QCOMPARE(client.folderError().isEmpty(), computer);
+            QCOMPARE(client.remotePath(), originalPath);
+        } else {
+            if (operation == "upload") client.enqueueTo(true, {"upload.txt"}, local.path(), target);
+            else if (operation == "download") client.enqueueTo(false, {"source.txt"}, target, downloaded.path());
+            else client.uploadFilesTo({QUrl::fromLocalFile(local.filePath("dropped.txt"))}, target);
+            QTRY_VERIFY_WITH_TIMEOUT(!client.busy(), 10000);
+            if (computer) {
+                QVERIFY(!client.jobs().isEmpty());
+                const auto job = client.jobs().last().toMap();
+                QVERIFY2(job["state"] == "done", qPrintable(job["detail"].toString()));
+                if (operation == "upload") QCOMPARE(read(outside.filePath("upload.txt")), QByteArray("upload to absolute destination"));
+                else if (operation == "download") QCOMPARE(read(downloaded.filePath("source.txt")), QByteArray("correct absolute source"));
+                else QCOMPARE(read(outside.filePath("dropped.txt")), QByteArray("drop to absolute destination"));
+            } else {
+                QVERIFY(!client.error().isEmpty()
+                    || (!client.jobs().isEmpty() && client.jobs().last().toMap()["state"] == "failed"));
+                QVERIFY(!QFileInfo::exists(downloaded.filePath("source.txt")));
+            }
+        }
+        QVERIFY(!QFileInfo::exists(trap + "/upload.txt"));
+        QVERIFY(!QFileInfo::exists(trap + "/dropped.txt"));
+        QCOMPARE(read(trap + "/source.txt"), QByteArray("wrong shared-root source"));
+        for (const auto& request : server.operations) {
+            const auto path = request["path"].toString();
+            QVERIFY2(path != trapRelative && !path.startsWith(trapRelative + '/'),
+                qPrintable("Absolute input was rewritten as shared-relative path: " + path));
+            if (computer && request["op"] != "capabilities") QCOMPARE(request["scope"].toString(), QString("computer"));
+        }
+    }
+    void sharedAbsolutePathBoundaries_data() {
+        QTest::addColumn<QString>("root");
+        QTest::addColumn<QString>("input");
+        QTest::addColumn<bool>("valid");
+        QTest::addColumn<QString>("relative");
+        QTest::newRow("windows-shared-root") << "C:/Desk" << "C:/Desk" << true << "";
+        QTest::newRow("windows-shared-child") << "C:/Desk" << "C:/Desk/folder" << true << "folder";
+        QTest::newRow("windows-case-and-separators") << "C:/Desk" << "c:\\desk\\folder\\" << true << "folder";
+        QTest::newRow("windows-prefix-collision") << "C:/Desk" << "C:/Desk2/folder" << false << "";
+        QTest::newRow("windows-other-drive") << "C:/Desk" << "D:/Desk/folder" << false << "";
+        QTest::newRow("windows-drive-relative") << "C:/Desk" << "C:folder" << false << "";
+        QTest::newRow("windows-device-path") << "C:/Desk" << "\\\\?\\C:\\Desk\\folder" << false << "";
+        QTest::newRow("windows-unc-path") << "C:/Desk" << "\\\\server\\share" << false << "";
+        QTest::newRow("windows-parent-segment") << "C:/Desk" << "C:/Desk/../folder" << false << "";
+        QTest::newRow("windows-dot-segment") << "C:/Desk" << "C:/Desk/./folder" << false << "";
+        QTest::newRow("windows-entire-drive-root") << "C:/" << "C:/" << true << "";
+        QTest::newRow("windows-entire-drive-child") << "C:/" << "c:/folder" << true << "folder";
+        QTest::newRow("windows-entire-other-drive") << "C:/" << "D:/folder" << false << "";
+        QTest::newRow("unix-root") << "/" << "/" << true << "";
+        QTest::newRow("unix-root-child") << "/" << "/folder" << true << "folder";
+        QTest::newRow("unix-shared-child") << "/root/Desk" << "/root/Desk/folder/" << true << "folder";
+        QTest::newRow("unix-prefix-collision") << "/root/Desk" << "/root/Desk2/folder" << false << "";
+        QTest::newRow("unix-root-case-sensitive") << "/root/Desk" << "/root/desk/folder" << false << "";
+        QTest::newRow("unix-parent-segment") << "/root/Desk" << "/root/Desk/../folder" << false << "";
+        QTest::newRow("embedded-nul") << QString("/root/Desk") << (QString("/root/Desk/") + QChar(0) + "folder") << false << QString();
+    }
+    void sharedAbsolutePathBoundaries() {
+        QFETCH(QString, root);
+        QFETCH(QString, input);
+        QFETCH(bool, valid);
+        QFETCH(QString, relative);
+        QTemporaryDir shared;
+        QVERIFY(QDir(shared.path()).mkdir("folder"));
+        FileServer server(shared.path()); server.advertisedRoot = root;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        FileTransfer client("127.0.0.1", server.serverPort(), server.identity.localCertificate());
+        QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 10000);
+        QCOMPARE(client.remoteRoot(), root);
+        const auto originalEntries = client.remoteEntries();
+        const auto requests = server.requests;
+        client.browseRemote(input);
+        QTRY_VERIFY_WITH_TIMEOUT(!client.remoteLoading(), 5000);
+        if (valid) {
+            QVERIFY2(client.error().isEmpty(), qPrintable(client.error()));
+            QCOMPARE(client.remotePath(), relative);
+            QCOMPARE(server.requests, requests + 1);
+            QCOMPARE(server.operations.last()["path"].toString(), relative);
+        } else {
+            QVERIFY(!client.error().isEmpty());
+            QCOMPARE(client.remotePath(), QString());
+            QCOMPARE(client.remoteEntries(), originalEntries);
+            QCOMPARE(server.requests, requests);
+        }
+    }
+    void absolutePathTypedInUiKeepsErrorAndInput_data() {
+        QTest::addColumn<bool>("legacyProtocol");
+        QTest::addColumn<bool>("picker");
+        QTest::newRow("shared-browser") << false << false;
+        QTest::newRow("legacy-browser") << true << false;
+        QTest::newRow("shared-picker") << false << true;
+        QTest::newRow("legacy-picker") << true << true;
+    }
+    void absolutePathTypedInUiKeepsErrorAndInput() {
+        QFETCH(bool, legacyProtocol);
+        QFETCH(bool, picker);
+        QTemporaryDir shared, local;
+        QVERIFY(QDir(shared.path()).mkpath("home/coderleex"));
+        write(shared.filePath("home/coderleex/trap.txt"), "do not browse here");
+        write(local.filePath("upload.txt"), "local source");
+        FileServer server(shared.path()); server.legacyProtocol = legacyProtocol;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        FileTransfer client("127.0.0.1", server.serverPort(), server.identity.localCertificate());
+        client.browseLocal(local.path());
+        QTRY_VERIFY_WITH_TIMEOUT(client.ready(), 10000);
+        const auto originalPath = client.remotePath();
+        const auto originalEntries = client.remoteEntries();
+        const auto originalDisplayPath = client.remoteDisplayPath();
+        QTranslator translator;
+        QVERIFY(translator.load(QFINDTESTDATA("../../app/languages/qml_zh_CN.qm")));
+        QCoreApplication::installTranslator(&translator);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("transfer", &client);
+        engine.rootContext()->setContextProperty("hostName", "Test host");
+        engine.rootContext()->setContextProperty("transferDark", false);
+        engine.load(QUrl("qrc:/gui/FileTransferWindow.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto window = qobject_cast<QQuickWindow*>(engine.rootObjects().first()); QVERIFY(window);
+        window->resize(900, 640);
+        QTest::qWait(200);
+        if (picker) {
+            QVERIFY(QMetaObject::invokeMethod(window, "chooseTransfer", Q_ARG(QVariant, false),
+                Q_ARG(QVariant, QStringList {"upload.txt"}), Q_ARG(QVariant, client.localPath())));
+            QTRY_VERIFY_WITH_TIMEOUT(client.folderValid() && !client.folderLoading(), 5000);
+            QTest::qWait(200);
+        }
+        auto field = findItem(window->contentItem(), picker ? "folderPathField" : "remotePathField"); QVERIFY(field);
+        auto typePath = [&](const QString& path) {
+            field->forceActiveFocus();
+            QTest::keySequence(window, QKeySequence::SelectAll);
+            for (const auto character : path) QTest::keyClick(window, character.toLatin1());
+            QTest::keyClick(window, Qt::Key_Return);
+        };
+        typePath("/home/coderleex");
+        QTRY_VERIFY_WITH_TIMEOUT(picker ? !client.folderError().isEmpty() : !client.error().isEmpty(), 5000);
+        QCOMPARE(field->property("text").toString(), QString("/home/coderleex"));
+        QCOMPARE(client.remotePath(), originalPath);
+        QCOMPARE(client.remoteEntries(), originalEntries);
+        if (picker) {
+            auto confirm = findItem(window->contentItem(), "confirmTransferButton"); QVERIFY(confirm);
+            QVERIFY(!confirm->isEnabled());
+            QVERIFY(!client.folderValid());
+        }
+        QVERIFY(client.jobs().isEmpty());
+        const auto output = qEnvironmentVariable("DESK_SCREENSHOT_DIR");
+        if (!output.isEmpty() && !legacyProtocol) {
+            QDir().mkpath(output);
+            QTest::qWait(100);
+            QVERIFY(window->grabWindow().save(QDir(output).filePath(picker
+                ? "file-transfer-invalid-path-picker-900x640.png" : "file-transfer-invalid-path-browser-900x640.png")));
+        }
+        // Re-enter the unchanged, valid shared root; success must clear the error.
+        typePath(originalDisplayPath);
+        QTRY_VERIFY_WITH_TIMEOUT(picker ? client.folderValid() && !client.folderLoading()
+                                       : !client.remoteLoading() && client.error().isEmpty(), 5000);
+        QCOMPARE(field->property("text").toString(), originalDisplayPath);
+        if (picker) {
+            QVERIFY(client.folderError().isEmpty());
+            auto confirm = findItem(window->contentItem(), "confirmTransferButton"); QVERIFY(confirm);
+            QTRY_VERIFY_WITH_TIMEOUT(confirm->isEnabled(), 5000);
+        }
+        QVERIFY(!QFileInfo::exists(shared.filePath("home/coderleex/upload.txt")));
+        window->hide();
+        QCoreApplication::removeTranslator(&translator);
+    }
     void invalidExplicitDestinationsAreRejected_data() {
         QTest::addColumn<bool>("upload");
         QTest::addColumn<bool>("isFile");
@@ -676,6 +892,20 @@ private slots:
                 }
             }
             QVERIFY(QMetaObject::invokeMethod(dialog, "close"));
+            QTRY_VERIFY_WITH_TIMEOUT(!dialog->property("visible").toBool(), 5000);
+            auto remotePane = findItem(window->contentItem(), "remoteFilePane"); QVERIFY(remotePane);
+            auto scopeButton = findItem(remotePane, "scopeHelpButton"); QVERIFY(scopeButton);
+            QVERIFY(scopeButton->isVisible());
+            QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                scopeButton->mapToScene(QPointF(scopeButton->width()/2, scopeButton->height()/2)).toPoint());
+            auto scopeDialog = window->findChild<QObject*>("scopeHelpDialog"); QVERIFY(scopeDialog);
+            QTRY_VERIFY_WITH_TIMEOUT(scopeDialog->property("opened").toBool(), 5000);
+            QVERIFY(scopeDialog->property("x").toDouble() >= 0 && scopeDialog->property("y").toDouble() >= 0);
+            QVERIFY(scopeDialog->property("x").toDouble() + scopeDialog->property("width").toDouble() <= window->width());
+            QVERIFY(scopeDialog->property("y").toDouble() + scopeDialog->property("height").toDouble() <= window->height());
+            if (!output.isEmpty())
+                QVERIFY(window->grabWindow().save(QDir(output).filePath(dark ? "file-transfer-scope-dark-900x640.png" : "file-transfer-scope-light-900x640.png")));
+            QVERIFY(QMetaObject::invokeMethod(scopeDialog, "close"));
             QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join("\n")));
             window->hide();
         }

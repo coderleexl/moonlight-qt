@@ -25,6 +25,13 @@ Rectangle {
     border.color: window.borderColor
     onEntriesChanged: Qt.callLater(pane.reconcileSelection)
     onCurrentPathChanged: clearSelection()
+    Component.onCompleted: pathField.text = pane.displayPath
+
+    Connections {
+        target: transfer
+        function onLocalBrowseSucceeded() { if (!pane.remote) pathField.text = pane.displayPath; }
+        function onRemoteBrowseSucceeded() { if (pane.remote) pathField.text = pane.displayPath; }
+    }
 
     function clearSelection() { selected = []; selectionAnchor = -1; }
     function reconcileSelection() {
@@ -153,12 +160,11 @@ Rectangle {
                 objectName: pane.remote ? "remotePathField" : "localPathField"
                 implicitHeight: 36
                 Layout.fillWidth: true
-                text: pane.displayPath
                 selectByMouse: true
                 font.pixelSize: 12
                 Accessible.name: qsTr("Folder path")
                 ToolTip.visible: hovered && !activeFocus
-                ToolTip.text: pane.displayPath
+                ToolTip.text: text
                 onAccepted: pane.browse(text)
             }
             ToolButton {
@@ -168,17 +174,30 @@ Rectangle {
                 onClicked: pane.browse(pathField.text)
             }
         }
-        Label {
+        RowLayout {
             Layout.fillWidth: true
-            text: pane.remote && transfer.ready && !transfer.remoteFilesystem
-                ? qsTr("Shared folder only · enable all disks on the host for more locations")
-                : qsTr("Double-click folders to open · drag files to copy")
-            color: window.secondaryColor
-            font.pixelSize: 11
-            elide: Text.ElideRight
-            ToolTip.visible: scopeHint.containsMouse
-            ToolTip.text: text
-            MouseArea { id: scopeHint; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+            Layout.minimumHeight: 24
+            spacing: 6
+            Label {
+                readonly property bool restricted: pane.remote && transfer.ready && !transfer.remoteFilesystem
+                Layout.fillWidth: true
+                text: restricted ? qsTr("Shared folder only") : qsTr("Double-click folders to open · drag files to copy")
+                color: restricted ? window.accentColor : window.secondaryColor
+                font.pixelSize: 11
+                font.bold: restricted
+                elide: Text.ElideRight
+                ToolTip.visible: scopeHint.containsMouse
+                ToolTip.text: text
+                MouseArea { id: scopeHint; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+            }
+            ToolButton {
+                objectName: "scopeHelpButton"
+                visible: pane.remote && transfer.ready && !transfer.remoteFilesystem
+                text: qsTr("Other folders…")
+                implicitHeight: 24
+                font.pixelSize: 11
+                onClicked: window.showScopeHelp()
+            }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: window.borderColor }
         RowLayout {

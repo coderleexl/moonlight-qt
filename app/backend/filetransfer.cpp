@@ -77,7 +77,8 @@ void FileTransfer::uploadFilesTo(const QList<QUrl>& urls, const QString& destina
         sources.append(source);
     }
     if (sources.isEmpty()) return;
-    const auto destination = normalizeRemotePath(destinationDirectory);
+    QString destination, error;
+    if (!normalizeRemotePath(destinationDirectory, destination, error)) { setError(error); return; }
     ++m_PendingEnqueues; emit jobsChanged();
     request({{"op", "stat"}, {"path", destination}}, [this, sources, destination](QJsonObject result) {
         --m_PendingEnqueues;
@@ -307,6 +308,7 @@ void FileTransfer::browseLocal(const QString& path)
     auto entries = readLocalDirectory(path, canonical, error);
     if (!error.isEmpty()) { setError(error); return; }
     m_LocalPath = canonical; m_LocalEntries = entries; setError({}); emit localChanged();
+    emit localBrowseSucceeded();
 }
 void FileTransfer::initializeRemote()
 {
@@ -327,17 +329,49 @@ void FileTransfer::initializeRemote()
         browseRemote(m_RequestedRemotePath.isNull() ? m_RemoteDefaultPath : m_RequestedRemotePath);
     });
 }
-QString FileTransfer::normalizeRemotePath(const QString& path) const
+bool FileTransfer::normalizeRemotePath(const QString& path, QString& normalized, QString& error) const
 {
-    auto normalized = path;
+    normalized = path;
     normalized.replace('\\', '/');
-    if (m_RemoteFilesystem) return normalized.isEmpty() ? m_RemoteDefaultPath : normalized;
+    // Interpret the remote syntax, independently of the client's operating system.
+    // Never turn an absolute path into a shared-relative path by removing '/'.
+    const QRegularExpression drivePrefix(QStringLiteral("^[A-Za-z]:"));
+    const QRegularExpression driveAbsolute(QStringLiteral("^[A-Za-z]:/"));
+    const QRegularExpression driveRoot(QStringLiteral("^[A-Za-z]:/$"));
+    const auto parts = normalized.split('/');
+    if (normalized.contains(QChar(0)) || normalized.startsWith("//")
+        || parts.contains(".") || parts.contains("..")
+        || (drivePrefix.match(normalized).hasMatch() && !driveAbsolute.match(normalized).hasMatch())) {
+        error = tr("Invalid remote path. Use a folder path without . or .. components.");
+        return false;
+    }
+    while (normalized.size() > 1 && normalized.endsWith('/') && !driveRoot.match(normalized).hasMatch())
+        normalized.chop(1);
+    const bool absolute = normalized.startsWith('/') || driveAbsolute.match(normalized).hasMatch();
+    if (m_RemoteFilesystem) {
+        if (normalized.isEmpty()) normalized = m_RemoteDefaultPath;
+        else if (!absolute) {
+            error = tr("Enter an absolute path on the remote computer.");
+            return false;
+        }
+        return true;
+    }
+    if (!absolute) return true;
     auto root = m_RemoteRoot;
     root.replace('\\', '/');
-    if (!root.isEmpty() && normalized == root) return {};
-    if (!root.isEmpty() && normalized.startsWith(root + '/')) return normalized.mid(root.size() + 1);
-    while (normalized.startsWith('/')) normalized.remove(0, 1);
-    return normalized;
+    while (root.size() > 1 && root.endsWith('/') && !driveRoot.match(root).hasMatch()) root.chop(1);
+    const auto sensitivity = driveAbsolute.match(root).hasMatch() ? Qt::CaseInsensitive : Qt::CaseSensitive;
+    if (!root.isEmpty() && normalized.compare(root, sensitivity) == 0) {
+        normalized.clear();
+        return true;
+    }
+    const auto prefix = root.endsWith('/') ? root : root + '/';
+    if (!root.isEmpty() && normalized.startsWith(prefix, sensitivity)) {
+        normalized = normalized.mid(prefix.size());
+        return true;
+    }
+    error = tr("This path is outside the remote shared folder (%1). Enable all disks and folders on the remote computer, then reopen file transfer.").arg(m_RemoteRoot);
+    return false;
 }
 QString FileTransfer::displayRemotePath(const QString& path) const
 {
@@ -357,8 +391,11 @@ QString FileTransfer::remoteParent(const QString& path) const
 void FileTransfer::browseRemote(const QString& path)
 {
     if (!m_CapabilitiesResolved) { m_RequestedRemotePath = path; return; }
-    const auto requested = normalizeRemotePath(path);
     const int generation = ++m_BrowseGeneration;
+    QString requested, error;
+    if (!normalizeRemotePath(path, requested, error)) {
+        m_RemoteLoading = false; setError(error); emit remoteChanged(); return;
+    }
     m_RemoteLoading = true; emit remoteChanged();
     request({{"op", "list"}, {"path", requested}}, [this, requested, generation](QJsonObject result) {
         if (generation != m_BrowseGeneration) return;
@@ -371,6 +408,7 @@ void FileTransfer::browseRemote(const QString& path)
             m_RemotePlaces.append(QVariantMap{{"label", tr("Shared folder")}, {"path", ""}});
         }
         m_Ready = true; setError({}); emit remoteChanged();
+        emit remoteBrowseSucceeded();
     });
 }
 void FileTransfer::refresh() { browseLocal(m_LocalPath); browseRemote(m_RemotePath); }
@@ -396,7 +434,10 @@ void FileTransfer::browseFolderPicker(const QString& path)
             m_FolderLoading = false; m_FolderError = tr("The remote computer is not connected.");
             emit folderChanged(); return;
         }
-        const auto requested = normalizeRemotePath(path);
+        QString requested;
+        if (!normalizeRemotePath(path, requested, m_FolderError)) {
+            m_FolderLoading = false; emit folderChanged(); return;
+        }
         request({{"op", "list"}, {"path", requested}}, [this, requested, generation](QJsonObject result) {
             if (generation != m_FolderGeneration) return;
             m_FolderLoading = false;
@@ -408,6 +449,7 @@ void FileTransfer::browseFolderPicker(const QString& path)
                 m_FolderValid = true;
             }
             emit folderChanged();
+            if (m_FolderValid) emit folderBrowseSucceeded();
         });
     } else {
         QString canonical;
@@ -419,6 +461,7 @@ void FileTransfer::browseFolderPicker(const QString& path)
             m_FolderValid = true;
         }
         emit folderChanged();
+        if (m_FolderValid) emit folderBrowseSucceeded();
     }
 }
 void FileTransfer::createPickerFolder(const QString& name)
@@ -478,8 +521,12 @@ void FileTransfer::enqueueTo(bool upload, const QVariantList& names,
         || (upload ? !localInfo.isReadable() : !localInfo.isWritable())) {
         setError(tr("Choose an accessible local folder.")); return;
     }
-    const auto source = upload ? localInfo.canonicalFilePath() : normalizeRemotePath(sourceDirectory);
-    const auto destination = upload ? normalizeRemotePath(destinationDirectory) : localInfo.canonicalFilePath();
+    QString remoteDirectory, error;
+    if (!normalizeRemotePath(upload ? destinationDirectory : sourceDirectory, remoteDirectory, error)) {
+        setError(error); return;
+    }
+    const auto source = upload ? localInfo.canonicalFilePath() : remoteDirectory;
+    const auto destination = upload ? remoteDirectory : localInfo.canonicalFilePath();
     if (upload) {
         ++m_PendingEnqueues; emit jobsChanged();
         request({{"op", "stat"}, {"path", destination}}, [this, source, destination, names](QJsonObject result) {

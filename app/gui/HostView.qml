@@ -131,7 +131,25 @@ FocusScope {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 6
-                Label { text: qsTr("File transfer shared folder"); color: window.textColor }
+                Label { text: qsTr("File transfer access"); color: window.textColor }
+                ComboBox {
+                    objectName: "fileAccessScope"
+                    Layout.fillWidth: true
+                    model: [qsTr("Shared folder only"), qsTr("All disks and folders")]
+                    currentIndex: SunshineManager.fullFileAccess ? 1 : 0
+                    enabled: !hostPage.running && !hostPage.busy
+                    onActivated: SunshineManager.fullFileAccess = currentIndex === 1
+                }
+                Label {
+                    text: SunshineManager.fullFileAccess
+                        ? qsTr("Authorized devices can browse disks and read or write folders accessible to your account. Stop hosting before changing this setting.")
+                        : qsTr("Authorized devices can read and write only the shared folder below.")
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    color: window.secondaryColor
+                    font.pixelSize: 12
+                }
+                Label { text: SunshineManager.fullFileAccess ? qsTr("Default transfer folder") : qsTr("File transfer shared folder"); color: window.textColor }
                 RowLayout {
                     Layout.fillWidth: true
                     TextField {
@@ -144,7 +162,7 @@ FocusScope {
                     ActionButton { text: qsTr("Open folder"); onClicked: SunshineManager.openSharedDirectory() }
                 }
                 Label {
-                    text: qsTr("Authorized devices can read and write this folder. Stop hosting before changing it. Files elsewhere are not shared.")
+                    text: qsTr("This folder opens when a file transfer connection starts. Stop hosting before changing it.")
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
                     color: window.secondaryColor

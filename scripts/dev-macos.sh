@@ -13,8 +13,14 @@ case "${1:-}" in
   '')
     mkdir -p build/desk-macos-local.noindex
     python3 scripts/prepare-desk-translations.py
-    qmake -r moonlight-qt.pro CONFIG+=host_preview "QMAKE_APPLE_DEVICE_ARCHS=$(uname -m)" \
-      -o build/desk-macos-local.noindex/Makefile
+    # Keep SDK discovery in this shadow build. An older in-source stash/cache
+    # can otherwise retain an SDK that Xcode has removed during an update.
+    repo_root="$PWD"
+    (
+      cd build/desk-macos-local.noindex
+      [[ -f .qmake.stash ]] || touch .qmake.stash
+      qmake -nocache -r "$repo_root/moonlight-qt.pro" CONFIG+=host_preview "QMAKE_APPLE_DEVICE_ARCHS=$(uname -m)"
+    )
     # In-source generated moc files can suppress shadow-build moc rules.
     make -C build/desk-macos-local.noindex/app -f Makefile.Release compiler_moc_source_make_all
     # qmake changes VERSION_STR flags without invalidating existing objects.
@@ -67,6 +73,11 @@ if external:
     raise SystemExit('Installation stopped: external dependencies\n' + '\n'.join(external))
 PYDEPLOY
 
+# Sign the staged bundle before copying it so the executable comparison below
+# checks the exact installed artifact, including its embedded code signature.
+codesign --force --deep --sign - "$source_app"
+codesign --verify --deep --strict "$source_app"
+
 # Desk handles one SIGTERM by ending its session and quitting normally. Do not
 # use a second signal (which forces exit), or kill other Moonlight installations.
 python3 - <<'PY'
@@ -94,10 +105,36 @@ while running():
     time.sleep(0.2)
 PY
 
-ditto "$source_app" /Applications/Desk.app
-xattr -cr /Applications/Desk.app
-codesign --force --deep --sign - /Applications/Desk.app
-codesign --verify --deep --strict /Applications/Desk.app
+# ditto merges directories, leaving removed plugins/resources behind. Stage a
+# complete bundle and keep the previous installation until verification passes.
+python3 - "$source_app" <<'PYINSTALL'
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+destination = Path('/Applications/Desk.app')
+if destination.is_symlink():
+    raise SystemExit('Installation stopped: /Applications/Desk.app is a symbolic link.')
+with tempfile.TemporaryDirectory(prefix='.desk-install-', dir='/Applications') as directory:
+    staging = Path(directory)
+    replacement = staging / 'Desk.app'
+    previous = staging / 'previous.app'
+    subprocess.run(['ditto', sys.argv[1], str(replacement)], check=True)
+    subprocess.run(['xattr', '-cr', str(replacement)], check=True)
+    subprocess.run(['codesign', '--verify', '--deep', '--strict', str(replacement)], check=True)
+    if destination.exists():
+        destination.rename(previous)
+    try:
+        replacement.rename(destination)
+        subprocess.run(['codesign', '--verify', '--deep', '--strict', str(destination)], check=True)
+    except BaseException:
+        if destination.exists():
+            destination.rename(staging / 'failed.app')
+        if previous.exists():
+            previous.rename(destination)
+        raise
+PYINSTALL
 # ditto preserves the old shadow-build bundle timestamp. Invalidate the icon
 # cache before registering or launching the replacement application.
 touch /Applications/Desk.app

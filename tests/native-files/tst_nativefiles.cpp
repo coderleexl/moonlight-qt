@@ -70,6 +70,39 @@ private slots:
         publication.rejected();
         QVERIFY(!publication.begin("new-remote-copy", 12000));
     }
+    void delayedRemoteSelectionDoesNotReplaceNewLocalCopy()
+    {
+        ClipboardPublication publication;
+        QVERIFY(publication.begin("previous-remote-file", 0));
+        publication.succeeded();
+        publication.localCopy(); // User copied a picture while a poll was in flight.
+        QVERIFY(!publication.begin("delayed-remote-file", 1000, true));
+        // Polling the same selection after the local copy is acknowledged must
+        // not resurrect it; only a subsequent remote copy can take ownership.
+        QVERIFY(!publication.begin("delayed-remote-file", 2000));
+        QVERIFY(publication.begin("subsequent-remote-copy", 3000));
+        publication.succeeded();
+        QVERIFY(!publication.begin("", 4000, true));
+        QVERIFY(!publication.begin("", 5000));
+        QVERIFY(publication.begin("later-file", 6000));
+    }
+    void firstRemoteSnapshotPreservesTheStartupClipboard_data()
+    {
+        QTest::addColumn<QString>("initialOffer");
+        QTest::newRow("existing-remote-file") << QString("existing-file");
+        QTest::newRow("empty-remote-clipboard") << QString();
+    }
+    void firstRemoteSnapshotPreservesTheStartupClipboard()
+    {
+        QFETCH(QString, initialOffer);
+        ClipboardPublication publication;
+        QVERIFY(!publication.begin(initialOffer, 0, true));
+        // The initial selection remains suppressed after polling or a retry.
+        QVERIFY(!publication.begin(initialOffer, 2000));
+        QVERIFY(publication.begin("file-copied-after-connect", 3000));
+        publication.succeeded();
+        QVERIFY(!publication.begin("file-copied-after-connect", 4000));
+    }
     void activityProgressAndCancellation()
     {
         QStandardPaths::setTestModeEnabled(true);

@@ -18,6 +18,8 @@
 #include <QSslKey>
 #include <QTimer>
 #include <QStandardPaths>
+#include <QStorageInfo>
+#include <QSet>
 #include <QProcess>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -53,7 +55,7 @@ FileTransfer::FileTransfer(const QString& host, quint16 port, const QSslCertific
     }
     auto downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     browseLocal(QDir(downloads).exists() ? downloads : QDir::homePath());
-    QTimer::singleShot(0, this, [this] { browseRemote(""); });
+    QTimer::singleShot(0, this, &FileTransfer::initializeRemote);
     auto nativeTimer=new QTimer(this); nativeTimer->setInterval(500);
     connect(nativeTimer,&QTimer::timeout,this,&FileTransfer::refreshNativeJobs);nativeTimer->start();
 }
@@ -61,15 +63,34 @@ FileTransfer::FileTransfer(const QString& host, quint16 port, const QSslCertific
 FileTransfer::~FileTransfer() = default;
 void FileTransfer::uploadFiles(const QList<QUrl>& urls)
 {
+    uploadFilesTo(urls, m_RemotePath);
+}
+void FileTransfer::uploadFilesTo(const QList<QUrl>& urls, const QString& destinationDirectory)
+{
     if (!m_Ready) return;
+    QList<QFileInfo> sources;
     for (const auto& url : urls) {
         QFileInfo source(url.toLocalFile());
         if (!url.isLocalFile() || !source.exists() || source.isSymLink() || !validName(source.fileName())) {
             setError(tr("Only local files and folders can be uploaded.")); continue;
         }
-        addJob(true, source.absoluteFilePath(), join(m_RemotePath, source.fileName()));
+        sources.append(source);
     }
-    emit jobsChanged(); startNext();
+    if (sources.isEmpty()) return;
+    const auto destination = normalizeRemotePath(destinationDirectory);
+    ++m_PendingEnqueues; emit jobsChanged();
+    request({{"op", "stat"}, {"path", destination}}, [this, sources, destination](QJsonObject result) {
+        --m_PendingEnqueues;
+        if (!result["ok"].toBool() || !result["exists"].toBool() || !result["dir"].toBool()) {
+            setError(result.value("error").toString(tr("Choose an existing destination folder.")));
+            emit jobsChanged(); return;
+        } else {
+            setError({});
+            for (const auto& source : sources)
+                addJob(true, source.absoluteFilePath(), join(destination, source.fileName()));
+        }
+        emit jobsChanged(); startNext();
+    });
 }
 void FileTransfer::pasteFiles()
 {
@@ -91,16 +112,20 @@ void FileTransfer::systemDrag(bool remote, const QVariantList& names, QObject* o
     }
     if (!m_NativePlatform->supported()) { setError(tr("System file dragging is unavailable in this desktop session.")); return; }
     NativeTransport transport; transport.url=m_Url; transport.peer=m_Certificate; transport.identity=IdentityManager::get()->getSslConfig();
+    auto call = [transport, filesystem = m_RemoteFilesystem](QJsonObject request) {
+        if (filesystem) request["scope"] = "computer";
+        return transport.call(request);
+    };
     QJsonArray entries; QHash<QString, QJsonObject> sources;
     std::function<bool(QString,QString,int)> visit = [&](QString path,QString name,int depth) {
         if (depth>64 || entries.size()>=10000 || !NativeOfferStore::safePath(name)) return false;
-        auto stat=transport.call({{"op","stat"},{"path",path}});
+        auto stat=call({{"op","stat"},{"path",path}});
         if (!stat["ok"].toBool() || !stat["exists"].toBool()) return false;
         auto id=QUuid::createUuid().toString(QUuid::WithoutBraces);
         entries.append(QJsonObject{{"id",id},{"path",name},{"directory",stat["dir"]},{"size",stat["size"]}});
         sources.insert(id,{{"path",path},{"version",stat["version"]}});
         if (stat["dir"].toBool()) {
-            auto list=transport.call({{"op","list"},{"path",path}}); if (!list["ok"].toBool()) return false;
+            auto list=call({{"op","list"},{"path",path}}); if (!list["ok"].toBool()) return false;
             for (auto child:list["entries"].toArray()) {auto n=child.toObject()["name"].toString();if (!validName(n)||!visit(join(path,n),join(name,n),depth+1)) return false;}
         }
         return true;
@@ -109,9 +134,9 @@ void FileTransfer::systemDrag(bool remote, const QVariantList& names, QObject* o
     QJsonObject offer{{"ok",true},{"id",QUuid::createUuid().toString(QUuid::WithoutBraces)},{"entries",entries}};
     if (!NativeOfferStore::validManifest(offer)) {setError(tr("Too many files or unsupported file names."));return;}
     if(!m_NativeActivity)m_NativeActivity=std::make_unique<NativeActivity>(NativeActivity::peerKey(m_Url,m_Certificate.toDer()));
-    m_NativePlatform->drag(offer,m_NativeActivity->track(offer,[transport,sources](const QString& file,qint64 offset,int length) {
+    m_NativePlatform->drag(offer,m_NativeActivity->track(offer,[call,sources](const QString& file,qint64 offset,int length) {
         if (!sources.contains(file)) return QJsonObject{{"ok",false},{"error","Unknown selected file"}};
-        auto source=sources[file];auto result=transport.call({{"op","read"},{"path",source["path"]},{"version",source["version"]},{"offset",offset}});
+        auto source=sources[file];auto result=call({{"op","read"},{"path",source["path"]},{"version",source["version"]},{"offset",offset}});
         if (result["ok"].toBool()) {
             auto encoded=result["data"].toString().toLatin1();auto bytes=QByteArray::fromBase64(encoded);
             if (bytes.toBase64()!=encoded || bytes.size()>256*1024) return QJsonObject{{"ok",false},{"error","Invalid file data"}};
@@ -144,7 +169,10 @@ bool FileTransfer::validName(const QString& name)
     if (QRegularExpression(QStringLiteral("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\..*)?$"), QRegularExpression::CaseInsensitiveOption).match(name).hasMatch()) return false;
     return !name.contains(QRegularExpression(QStringLiteral("[\\x00-\\x1f/\\\\:*?\"<>|]")));
 }
-QString FileTransfer::join(const QString& path, const QString& name) { return path.isEmpty() ? name : path + "/" + name; }
+QString FileTransfer::join(const QString& path, const QString& name)
+{
+    return path.isEmpty() ? name : path + (path.endsWith('/') ? "" : "/") + name;
+}
 QString FileTransfer::localVersion(const QString& path)
 {
     QFileInfo info(path);
@@ -153,6 +181,7 @@ QString FileTransfer::localVersion(const QString& path)
 void FileTransfer::setError(const QString& message) { m_Error = message; emit errorChanged(); }
 void FileTransfer::request(QJsonObject object, Callback callback)
 {
+    if (m_RemoteFilesystem && object.value("op") != "capabilities") object["scope"] = "computer";
     if (m_Certificate.isNull() || m_Url.host().isEmpty() || m_Url.port() <= 0) {
         QTimer::singleShot(0, this, [callback] { callback({{"ok", false}, {"error", tr("A paired host is required.")}}); });
         return;
@@ -213,42 +242,202 @@ void FileTransfer::perform(JobPtr job, QJsonObject object, Callback callback)
         callback(result);
     });
 }
-void FileTransfer::browseLocal(const QString& path)
+QVariantList FileTransfer::localPlaces() const
 {
-    auto actual = QUrl(path).isLocalFile() ? QUrl(path).toLocalFile() : path;
+    QVariantList places;
+    QSet<QString> seen;
+    auto add = [&](const QString& label, const QString& path) {
+        if (path.isEmpty() || !QDir(path).exists()) return;
+        const auto canonical = QFileInfo(path).canonicalFilePath();
+        if (canonical.isEmpty() || seen.contains(canonical)) return;
+        seen.insert(canonical);
+        places.append(QVariantMap{{"label", label}, {"path", canonical}});
+    };
+    add(tr("Home"), QDir::homePath());
+    add(tr("Desktop"), QStandardPaths::writableLocation(QStandardPaths::DesktopLocation));
+    add(tr("Downloads"), QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    add(tr("Documents"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+    for (const auto& volume : QStorageInfo::mountedVolumes()) {
+        if (!volume.isValid() || !volume.isReady()) continue;
+#ifdef Q_OS_MACOS
+        if (volume.rootPath() != "/" && !volume.rootPath().startsWith("/Volumes/")) continue;
+#endif
+        add(volume.displayName().isEmpty() ? volume.rootPath()
+            : volume.displayName() + " (" + volume.rootPath() + ")", volume.rootPath());
+    }
+    add(tr("File system"), QDir::rootPath());
+    return places;
+}
+QVariantList FileTransfer::readLocalDirectory(const QString& path, QString& canonical, QString& error, bool foldersOnly)
+{
+    const auto actual = QUrl(path).isLocalFile() ? QUrl(path).toLocalFile() : path;
     QDir directory(actual);
-    if (!directory.exists() || !QFileInfo(actual).isReadable()) { setError(tr("Cannot open this directory.")); return; }
+    if (actual.isEmpty() || !directory.exists() || !QFileInfo(actual).isReadable()) {
+        error = tr("Cannot open this directory."); return {};
+    }
     QVariantList entries;
     const auto infos = directory.entryInfoList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
-    if (infos.size() > 10000) { setError(tr("This directory has too many entries.")); return; }
-    for (const auto& f : infos) if (f.isDir() || f.isFile()) entries.append(QVariantMap{{"name", f.fileName()}, {"dir", f.isDir()}, {"size", f.size()}});
-    m_LocalPath = QFileInfo(directory.absolutePath()).canonicalFilePath(); m_LocalEntries = entries; emit localChanged();
+    if (infos.size() > 10000) { error = tr("This directory has too many entries."); return {}; }
+    for (const auto& f : infos) {
+        if (!f.isDir() && (foldersOnly || !f.isFile())) continue;
+        entries.append(QVariantMap{{"name", f.fileName()}, {"dir", f.isDir()},
+            {"size", f.isDir() ? 0 : f.size()}, {"mtime", f.lastModified().toMSecsSinceEpoch()}});
+    }
+    canonical = QFileInfo(directory.absolutePath()).canonicalFilePath();
+    return entries;
+}
+QVariantList FileTransfer::remoteDirectoryEntries(const QJsonObject& result, bool foldersOnly)
+{
+    QVariantList entries;
+    for (const auto& value : result.value("entries").toArray()) {
+        const auto entry = value.toObject();
+        if (validName(entry.value("name").toString()) && (!foldersOnly || entry.value("dir").toBool()))
+            entries.append(entry.toVariantMap());
+    }
+    std::sort(entries.begin(), entries.end(), [](const QVariant& a, const QVariant& b) {
+        const auto x = a.toMap(), y = b.toMap();
+        return x["dir"].toBool() != y["dir"].toBool() ? x["dir"].toBool()
+            : QString::localeAwareCompare(x["name"].toString(), y["name"].toString()) < 0;
+    });
+    return entries;
+}
+void FileTransfer::browseLocal(const QString& path)
+{
+    QString canonical, error;
+    auto entries = readLocalDirectory(path, canonical, error);
+    if (!error.isEmpty()) { setError(error); return; }
+    m_LocalPath = canonical; m_LocalEntries = entries; setError({}); emit localChanged();
+}
+void FileTransfer::initializeRemote()
+{
+    request({{"op", "capabilities"}}, [this](QJsonObject result) {
+        m_CapabilitiesResolved = true;
+        // Old Desk hosts have no capabilities operation; keep their shared-root protocol.
+        if (result.value("ok").toBool()) {
+            m_RemoteFilesystem = result.value("filesystem").toBool();
+            m_RemoteDefaultPath = result.value("defaultPath").toString();
+            for (const auto& value : result.value("roots").toArray()) {
+                const auto root = value.toObject();
+                m_RemotePlaces.append(QVariantMap{{"label", root.value("name").toString()},
+                    {"path", root.value("path").toString()}});
+            }
+            if (m_RemoteFilesystem && !m_RemoteDefaultPath.isEmpty())
+                m_RemotePlaces.prepend(QVariantMap{{"label", tr("Default folder")}, {"path", m_RemoteDefaultPath}});
+        }
+        browseRemote(m_RequestedRemotePath.isNull() ? m_RemoteDefaultPath : m_RequestedRemotePath);
+    });
+}
+QString FileTransfer::normalizeRemotePath(const QString& path) const
+{
+    auto normalized = path;
+    normalized.replace('\\', '/');
+    if (m_RemoteFilesystem) return normalized.isEmpty() ? m_RemoteDefaultPath : normalized;
+    auto root = m_RemoteRoot;
+    root.replace('\\', '/');
+    if (!root.isEmpty() && normalized == root) return {};
+    if (!root.isEmpty() && normalized.startsWith(root + '/')) return normalized.mid(root.size() + 1);
+    while (normalized.startsWith('/')) normalized.remove(0, 1);
+    return normalized;
+}
+QString FileTransfer::displayRemotePath(const QString& path) const
+{
+    if (m_RemoteFilesystem) return path;
+    auto root = m_RemoteRoot;
+    root.replace('\\', '/');
+    return root.isEmpty() ? "/" + path : join(root, path);
+}
+QString FileTransfer::remoteParent(const QString& path) const
+{
+    if (path.isEmpty() || path == "/" || QRegularExpression("^[A-Za-z]:/$").match(path).hasMatch()) return {};
+    const int slash = path.lastIndexOf('/');
+    if (slash < 0) return {};
+    if (m_RemoteFilesystem && (slash == 0 || (slash == 2 && path[1] == ':'))) return path.left(slash + 1);
+    return path.left(slash);
 }
 void FileTransfer::browseRemote(const QString& path)
 {
+    if (!m_CapabilitiesResolved) { m_RequestedRemotePath = path; return; }
+    const auto requested = normalizeRemotePath(path);
     const int generation = ++m_BrowseGeneration;
-    request({{"op", "list"}, {"path", path}}, [this, path, generation](QJsonObject result) {
+    m_RemoteLoading = true; emit remoteChanged();
+    request({{"op", "list"}, {"path", requested}}, [this, requested, generation](QJsonObject result) {
         if (generation != m_BrowseGeneration) return;
-        if (!result.value("ok").toBool()) { setError(result.value("error").toString()); return; }
-        m_RemotePath = path; m_RemoteRoot = result.value("root").toString();
-        m_RemoteEntries.clear();
-        for (const auto& value : result.value("entries").toArray()) {
-            auto e = value.toObject();
-            if (validName(e.value("name").toString())) m_RemoteEntries.append(e.toVariantMap());
+        m_RemoteLoading = false;
+        if (!result.value("ok").toBool()) { setError(result.value("error").toString()); emit remoteChanged(); return; }
+        m_RemotePath = result.value("path").toString(requested); m_RemoteRoot = result.value("root").toString();
+        m_RemoteParentPath = result.value("parentPath").toString(remoteParent(m_RemotePath));
+        m_RemoteEntries = remoteDirectoryEntries(result);
+        if (m_RemotePlaces.isEmpty()) {
+            m_RemotePlaces.append(QVariantMap{{"label", tr("Shared folder")}, {"path", ""}});
         }
-        std::sort(m_RemoteEntries.begin(), m_RemoteEntries.end(), [](const QVariant& a, const QVariant& b) {
-            auto x = a.toMap(), y = b.toMap();
-            return x["dir"].toBool() != y["dir"].toBool() ? x["dir"].toBool() : QString::localeAwareCompare(x["name"].toString(), y["name"].toString()) < 0;
-        });
-        m_Ready = true; emit remoteChanged();
+        m_Ready = true; setError({}); emit remoteChanged();
     });
 }
 void FileTransfer::refresh() { browseLocal(m_LocalPath); browseRemote(m_RemotePath); }
 void FileTransfer::home() { browseLocal(QDir::homePath()); }
 void FileTransfer::parentDirectory(bool remote)
 {
-    if (remote) { auto path = m_RemotePath; const int index = path.lastIndexOf('/'); browseRemote(index < 0 ? "" : path.left(index)); }
+    if (remote) { if (!m_RemoteFilesystem || !m_RemoteParentPath.isEmpty()) browseRemote(m_RemoteParentPath); }
     else { QDir dir(m_LocalPath); dir.cdUp(); browseLocal(dir.absolutePath()); }
+}
+void FileTransfer::openFolderPicker(bool remote, const QString& path)
+{
+    m_FolderRemote = remote;
+    m_FolderEntries.clear(); m_FolderPath.clear(); m_FolderParentPath.clear();
+    browseFolderPicker(path);
+}
+void FileTransfer::browseFolderPicker(const QString& path)
+{
+    const int generation = ++m_FolderGeneration;
+    m_FolderError.clear(); m_FolderValid = false; m_FolderLoading = m_FolderRemote;
+    emit folderChanged();
+    if (m_FolderRemote) {
+        if (!m_Ready) {
+            m_FolderLoading = false; m_FolderError = tr("The remote computer is not connected.");
+            emit folderChanged(); return;
+        }
+        const auto requested = normalizeRemotePath(path);
+        request({{"op", "list"}, {"path", requested}}, [this, requested, generation](QJsonObject result) {
+            if (generation != m_FolderGeneration) return;
+            m_FolderLoading = false;
+            if (!result["ok"].toBool()) m_FolderError = result.value("error").toString(tr("Cannot open this directory."));
+            else {
+                m_FolderPath = result.value("path").toString(requested);
+                m_FolderParentPath = result.value("parentPath").toString(remoteParent(m_FolderPath));
+                m_FolderEntries = remoteDirectoryEntries(result, true);
+                m_FolderValid = true;
+            }
+            emit folderChanged();
+        });
+    } else {
+        QString canonical;
+        const auto entries = readLocalDirectory(path, canonical, m_FolderError, true);
+        if (m_FolderError.isEmpty()) {
+            m_FolderPath = canonical; m_FolderEntries = entries;
+            QDir parent(canonical);
+            m_FolderParentPath = parent.cdUp() ? parent.absolutePath() : QString();
+            m_FolderValid = true;
+        }
+        emit folderChanged();
+    }
+}
+void FileTransfer::createPickerFolder(const QString& name)
+{
+    if (!m_FolderValid || m_FolderLoading) return;
+    if (!validName(name)) { m_FolderError = tr("Invalid file name."); emit folderChanged(); return; }
+    const auto path = m_FolderPath;
+    if (m_FolderRemote) {
+        const auto generation = ++m_FolderGeneration;
+        m_FolderLoading = true; emit folderChanged();
+        request({{"op", "mkdir"}, {"path", join(path, name)}}, [this, generation, path](QJsonObject result) {
+            if (generation != m_FolderGeneration) return;
+            m_FolderLoading = false;
+            if (!result["ok"].toBool()) { m_FolderError = result["error"].toString(); emit folderChanged(); }
+            else browseFolderPicker(path);
+        });
+    } else if (!QDir(path).mkdir(name)) {
+        m_FolderError = tr("Cannot create directory."); emit folderChanged();
+    } else browseFolderPicker(path);
 }
 void FileTransfer::createFolder(bool remote, const QString& name)
 {
@@ -275,18 +464,57 @@ void FileTransfer::enqueue(bool upload, const QVariantList& names)
     }
     emit jobsChanged(); startNext();
 }
+void FileTransfer::enqueueTo(bool upload, const QVariantList& names,
+    const QString& sourceDirectory, const QString& destinationDirectory)
+{
+    if (!m_Ready || names.isEmpty()) return;
+    for (const auto& name : names) {
+        if (!validName(name.toString())) { setError(tr("Invalid file name.")); return; }
+    }
+    const auto localDirectory = upload ? sourceDirectory : destinationDirectory;
+    const auto localPath = QUrl(localDirectory).isLocalFile() ? QUrl(localDirectory).toLocalFile() : localDirectory;
+    const QFileInfo localInfo(localPath);
+    if (!QDir::isAbsolutePath(localPath) || !localInfo.isDir()
+        || (upload ? !localInfo.isReadable() : !localInfo.isWritable())) {
+        setError(tr("Choose an accessible local folder.")); return;
+    }
+    const auto source = upload ? localInfo.canonicalFilePath() : normalizeRemotePath(sourceDirectory);
+    const auto destination = upload ? normalizeRemotePath(destinationDirectory) : localInfo.canonicalFilePath();
+    if (upload) {
+        ++m_PendingEnqueues; emit jobsChanged();
+        request({{"op", "stat"}, {"path", destination}}, [this, source, destination, names](QJsonObject result) {
+            --m_PendingEnqueues;
+            if (!result["ok"].toBool() || !result["exists"].toBool() || !result["dir"].toBool()) {
+                setError(result.value("error").toString(tr("Choose an existing destination folder.")));
+                emit jobsChanged(); return;
+            } else {
+                setError({});
+                for (const auto& name : names) addJob(true, join(source, name.toString()), join(destination, name.toString()));
+            }
+            emit jobsChanged(); startNext();
+        });
+    } else {
+        setError({});
+        for (const auto& name : names) addJob(false, join(source, name.toString()), join(destination, name.toString()));
+        emit jobsChanged(); startNext();
+    }
+}
 QVariantList FileTransfer::jobs() const
 {
     QVariantList result;
     for (const auto& j : m_Jobs) {
         const double speed = j->timer.isValid() && j->timer.elapsed() > 0 ? double(j->done) * 1000.0 / j->timer.elapsed() : 0;
-        result.append(QVariantMap{{"name", j->name}, {"upload", j->upload}, {"state", j->state}, {"detail", j->detail}, {"done", j->done}, {"size", j->size}, {"speed", speed}, {"committing", j->committing}});
+        result.append(QVariantMap{{"name", j->name}, {"upload", j->upload}, {"state", j->state}, {"detail", j->detail}, {"done", j->done}, {"size", j->size}, {"speed", speed}, {"committing", j->committing},
+            {"source", j->source}, {"destination", j->destination},
+            {"sourceDisplay", j->upload ? j->source : displayRemotePath(j->source)},
+            {"destinationDisplay", j->upload ? displayRemotePath(j->destination) : j->destination}});
     }
     result.append(m_NativeJobs);
     return result;
 }
 bool FileTransfer::busy() const
 {
+    if (m_PendingEnqueues > 0) return true;
     if(m_NativePlatform&&m_NativePlatform->pendingDrag())return true;
     for (const auto& j : m_Jobs) if (j->state == "queued" || j->state == "running" || j->state == "conflict") return true;
     for (const auto& value:m_NativeJobs) if (value.toMap()["state"]=="running") return true;

@@ -317,6 +317,7 @@ void SunshineManager::start()
     environment.insert("DESK_DEVICE_ID", m_DeviceId);
     environment.insert("DESK_ACCESS_PASSWORD", m_AccessPassword);
     environment.insert("DESK_FILE_ROOT", QString::fromLatin1(sharedDirectory().toUtf8().toBase64()));
+    environment.insert("DESK_FILE_ACCESS", fullFileAccess() ? "computer" : "shared");
     NativeAgent::stop(m_ClipboardProcess);
     if (!NativeAgent::startHost(m_ClipboardProcess, environment)) {
         m_Log += tr("File clipboard is unavailable; hosting and regular transfers remain available.") + "\n";
@@ -391,6 +392,16 @@ QString SunshineManager::sharedDirectory() const
     QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     if (downloads.isEmpty()) downloads = QDir::homePath();
     return QSettings().value("host/sharedDirectory", QDir(downloads).filePath("Desk")).toString();
+}
+bool SunshineManager::fullFileAccess() const
+{
+    return QSettings().value("host/fullFileAccess", false).toBool();
+}
+void SunshineManager::setFullFileAccess(bool enabled)
+{
+    if (m_Process.state() != QProcess::NotRunning) return;
+    QSettings().setValue("host/fullFileAccess", enabled);
+    emit fileAccessChanged();
 }
 void SunshineManager::setSharedDirectory(const QString& directory)
 {

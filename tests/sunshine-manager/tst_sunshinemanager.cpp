@@ -10,6 +10,7 @@
 #include <QJsonDocument>
 #include <QNetworkProxy>
 #include <QStandardPaths>
+#include <QSettings>
 #include <QTcpServer>
 #include <QTemporaryDir>
 #include <QUrl>
@@ -44,6 +45,13 @@ static int fakeHost(QCoreApplication& app)
     if (!DeskAccess::validPassword(password) || password != credentials.value("password").toString()) return 24;
     if (qEnvironmentVariable("DESK_DEVICE_ID") != credentials.value("deviceId").toString()) return 25;
     if (args.join(' ').contains(password)) return 26;
+    QFile environmentRecord(QFileInfo(config).dir().filePath("test-environment.json"));
+    if (!environmentRecord.open(QIODevice::WriteOnly)) return 28;
+    environmentRecord.write(QJsonDocument(QJsonObject {
+        { "fileAccess", qEnvironmentVariable("DESK_FILE_ACCESS") },
+        { "fileRoot", QString::fromUtf8(QByteArray::fromBase64(qgetenv("DESK_FILE_ROOT"))) }
+    }).toJson());
+    environmentRecord.close();
     if (content.contains("test_exit")) {
         // Let the stdin watcher block before exiting while the owner is alive.
         // This catches stdio cleanup deadlocks from buffered reads in that thread.
@@ -79,7 +87,10 @@ private slots:
         QStandardPaths::setTestModeEnabled(true);
         // Unique app name keeps configuration isolated from real Moonlight.
         QCoreApplication::setApplicationName("MoonlightHostTest-" + QFileInfo(m_Data.path()).fileName());
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_Data.path());
         SunshineManager manager;
+        manager.setSharedDirectory(m_Data.filePath("shared"));
         m_ConfigDir = manager.configDirectory();
 #ifdef Q_OS_WIN
         m_Helper = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("host/sunshine/sunshine.exe");
@@ -203,6 +214,35 @@ private slots:
         QVERIFY(!root.contains("devices"));
         SunshineManager third;
         QCOMPARE(third.accessPassword(), second.accessPassword());
+    }
+    void fileAccessScopePersistsAndChangesOnlyWhenStopped()
+    {
+        SunshineManager manager;
+        QVERIFY(!manager.fullFileAccess());
+        manager.setFullFileAccess(true);
+        QVERIFY(manager.fullFileAccess());
+        SunshineManager restored;
+        QVERIFY(restored.fullFileAccess());
+        auto recordedEnvironment = [&] {
+            QFile file(m_ConfigDir + "/test-environment.json");
+            if (!file.open(QIODevice::ReadOnly)) return QJsonObject();
+            return QJsonDocument::fromJson(file.readAll()).object();
+        };
+        manager.start();
+        QTRY_COMPARE_WITH_TIMEOUT(manager.state(), SunshineManager::Running, 5000);
+        QCOMPARE(recordedEnvironment()["fileAccess"].toString(), QString("computer"));
+        QCOMPARE(recordedEnvironment()["fileRoot"].toString(), m_Data.filePath("shared"));
+        manager.setFullFileAccess(false);
+        QVERIFY(manager.fullFileAccess());
+        manager.stop();
+        QTRY_COMPARE_WITH_TIMEOUT(manager.state(), SunshineManager::Stopped, 7000);
+        manager.setFullFileAccess(false);
+        QVERIFY(!manager.fullFileAccess());
+        manager.start();
+        QTRY_COMPARE_WITH_TIMEOUT(manager.state(), SunshineManager::Running, 5000);
+        QCOMPARE(recordedEnvironment()["fileAccess"].toString(), QString("shared"));
+        manager.stop();
+        QTRY_COMPARE_WITH_TIMEOUT(manager.state(), SunshineManager::Stopped, 7000);
     }
     void customPasswordPersistsAndRevokes()
     {

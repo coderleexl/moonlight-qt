@@ -7,8 +7,15 @@
 // a subsequent local copy take precedence over a pending remote publication.
 class ClipboardPublication {
 public:
-    bool begin(const QString& id, qint64 now)
+    bool begin(const QString& id, qint64 now, bool localCopyTakesPriority = false)
     {
+        if (localCopyTakesPriority) {
+            // Remember even an unseen remote selection, so a later poll cannot
+            // resurrect a response superseded by a local copy.
+            m_Id = id;
+            m_Complete = true;
+            return false;
+        }
         if (id != m_Id) {
             m_Id = id;
             m_Attempts = 0;

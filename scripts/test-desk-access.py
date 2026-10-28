@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Exercise the real bundled host's password handshake; no capture/GPU needed.
+"""Exercise the real host's password handshake and authorized file protocol.
 
-Runs only in CI against an explicitly provided helper, with temporary identities.
-Never reads the user's Desk configuration or sends passwords over HTTP.
+Uses an explicitly provided helper, private loopback ports and temporary identities.
+No streaming session or system clipboard is used. Filesystem writes stay inside
+temporary fixtures; the user's Desk configuration is never read.
 """
 import datetime
 import base64
@@ -32,8 +33,28 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.x509.oid import NameOID
 
 
-def request(path, args, context=None):
-    scheme, port = ('https', 48984) if context else ('http', 48989)
+def private_port_base():
+    """Find a free GameStream port group without using an installed host's ports."""
+    for _ in range(100):
+        base = 35000 + secrets.randbelow(20000)
+        probes = []
+        try:
+            for offset in (-5, 0, 1, 9, 10, 11, 21):
+                for kind in (socket.SOCK_STREAM, socket.SOCK_DGRAM):
+                    probe = socket.socket(socket.AF_INET, kind)
+                    probes.append(probe)
+                    probe.bind(('127.0.0.1', base + offset))
+            return base
+        except OSError:
+            continue
+        finally:
+            for probe in probes:
+                probe.close()
+    raise AssertionError('No private test port group is available')
+
+
+def request(path, args, context=None, *, base):
+    scheme, port = ('https', base - 5) if context else ('http', base)
     opener = urllib.request.build_opener(
         urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
     url = f'{scheme}://127.0.0.1:{port}/{path}?' + urllib.parse.urlencode(args)
@@ -58,7 +79,7 @@ def identity(directory):
     return key, cert, pem
 
 
-def handshake(password, key, cert, pem, should_accept):
+def handshake(password, key, cert, pem, should_accept, base):
     session = str(uuid.uuid4())
     salt = secrets.token_bytes(16)
     cipher = Cipher(algorithms.AES(hashlib.sha256(salt + password.encode()).digest()[:16]), modes.ECB())
@@ -68,7 +89,7 @@ def handshake(password, key, cert, pem, should_accept):
         return operation.update(data) + operation.finalize()
 
     def pair(**args):
-        tree = request('pair', dict(uniqueid=session, devicename='Desk CI', **args))
+        tree = request('pair', dict(uniqueid=session, devicename='Desk CI', **args), base=base)
         assert tree.get('status_code') == '200', ET.tostring(tree)
         return tree
 
@@ -96,11 +117,11 @@ def handshake(password, key, cert, pem, should_accept):
     return server_pem
 
 
-def test_file_transfer(directory, context, server_pem):
+def test_file_transfer(directory, context, server_pem, base, filesystem):
     """Exercise the real HTTPS route, certificate gate, sandbox and chunk protocol."""
     def files(payload, tls=context, route="files"):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=tls))
-        req = urllib.request.Request('https://127.0.0.1:48984/desk/' + route,
+        req = urllib.request.Request(f'https://127.0.0.1:{base - 5}/desk/' + route,
                                      json.dumps(payload).encode(), {'Content-Type': 'application/json'})
         with opener.open(req, timeout=10) as response:
             return response.read()
@@ -110,7 +131,7 @@ def test_file_transfer(directory, context, server_pem):
     # that client's close_notify (Qt and interrupted clients can delay it).
     for route in ('files', 'clipboard'):
         payload = b'{"op":"list","path":""}' if route == 'files' else b'{"op":"open"}'
-        with context.wrap_socket(socket.create_connection(('127.0.0.1', 48984), timeout=3),
+        with context.wrap_socket(socket.create_connection(('127.0.0.1', base - 5), timeout=3),
                                  server_hostname='localhost') as lingering:
             lingering.sendall((f'POST /desk/{route} HTTP/1.1\r\nHost: localhost\r\n'
                                f'Content-Type: application/json\r\nContent-Length: {len(payload)}\r\n'
@@ -138,7 +159,7 @@ def test_file_transfer(directory, context, server_pem):
     # Sending a POST here races that close and can raise BrokenPipeError instead
     # of letting urllib read the rejection. Read the early response directly;
     # a disconnect, TLS failure or arbitrary response must NOT count as success.
-    with socket.create_connection(('127.0.0.1', 48984), timeout=10) as connection:
+    with socket.create_connection(('127.0.0.1', base - 5), timeout=10) as connection:
         with unpaired.wrap_socket(connection, server_hostname='localhost') as rejected:
             with http.client.HTTPResponse(rejected) as response:
                 response.begin()
@@ -151,7 +172,19 @@ def test_file_transfer(directory, context, server_pem):
 
     def call(**payload):
         return json.loads(files(payload))
-    assert call(op='list', path='')['protocol'] == 1
+    capabilities = call(op='capabilities')
+    assert capabilities['ok'] and capabilities['protocol'] == 2, capabilities
+    assert capabilities['filesystem'] is filesystem, capabilities
+    assert capabilities['platform'] == ('windows' if os.name == 'nt' else 'unix'), capabilities
+    if filesystem:
+        assert capabilities['roots'], capabilities
+        assert capabilities['defaultPath'] == (directory / 'shared').as_posix(), capabilities
+        for root in capabilities['roots']:
+            assert root['name'] and root['path'], root
+            assert '\\' not in root['path'], root
+    else:
+        assert capabilities['roots'] == [] and capabilities['defaultPath'] == '', capabilities
+    assert call(op='list', path='')['protocol'] == 2
     for invalid in ('../escape', '/etc/passwd', 'C:/Windows', '.desk-transfers/file', 'file:stream'):
         assert not call(op='stat', path=invalid)['ok']
     assert call(op='mkdir', path='中文 目录')['ok']
@@ -178,17 +211,75 @@ def test_file_transfer(directory, context, server_pem):
     token = call(op='begin', path='cancel.bin', size=10, expected='missing')['token']
     assert call(op='cancel', token=token)['ok']
     assert not (directory / 'shared' / 'cancel.bin').exists()
-    assert not list((directory / 'shared' / '.desk-transfers').iterdir())
+    staging = directory / 'shared' / '.desk-transfers'
+    assert not staging.exists() or not list(staging.iterdir())
     print('File transfer HTTPS tests passed: certificate authorization, sandbox, UTF-8, chunks, checksum, conflict, cancellation.')
 
+    outside = directory / 'outside-shared'
+    outside.mkdir()
+    absolute = outside.as_posix()
+    # Absolute access is opt-in per request even on an enabled host.
+    assert not call(op='list', path=absolute)['ok']
+    assert not call(op='stat', scope='computer', path=absolute + '/../escape')['ok']
+    if not filesystem:
+        for operation in ('list', 'stat', 'mkdir', 'read', 'begin'):
+            denied = call(op=operation, scope='computer', path=absolute + '/blocked',
+                          size=0, expected='missing', offset=0, version='missing')
+            assert not denied['ok'], (operation, denied)
+        assert not list(outside.iterdir()), 'Disabled filesystem access changed an external directory'
+        print('Filesystem HTTPS access denied without DESK_FILE_ACCESS=computer.')
+        return
 
-def run(helper, secret):
+    listing = call(op='list', scope='computer', path=absolute)
+    assert listing['ok'], listing
+    assert listing['path'] == absolute and listing['displayPath'] == absolute, listing
+    assert listing['parentPath'] == directory.as_posix(), listing
+    assert listing['entries'] == [], listing
+    folder = outside / '共享根外 中文目录'
+    assert call(op='mkdir', scope='computer', path=folder.as_posix())['ok']
+    target = folder / 'absolute-roundtrip.bin'
+    payload = secrets.token_bytes(600000)
+    upload = call(op='begin', scope='computer', path=target.as_posix(), size=len(payload), expected='missing')
+    assert upload['ok'], upload
+    token = upload['token']
+    assert not target.exists(), 'Computer-scoped upload published an incomplete destination'
+    assert len(list(folder.glob('.desk-transfers-*'))) == 1, 'Upload was not staged beside its destination'
+    assert call(op='list', scope='computer', path=folder.as_posix())['entries'] == [], 'Staging directory leaked into listing'
+    for offset in range(0, len(payload), 256 * 1024):
+        chunk = payload[offset:offset + 256 * 1024]
+        assert call(op='write', token=token, offset=offset, data=base64.b64encode(chunk).decode())['ok']
+    assert call(op='finish', token=token,
+                sha256=base64.b64encode(hashlib.sha256(payload).digest()).decode())['ok']
+    assert target.read_bytes() == payload
+    assert not list(folder.glob('.desk-transfers-*')), 'Completed upload left staging data behind'
+    info = call(op='stat', scope='computer', path=target.as_posix())
+    assert info['ok'] and info['size'] == len(payload) and isinstance(info['mtime'], int), info
+    downloaded = bytearray()
+    while len(downloaded) < info['size']:
+        response = call(op='read', scope='computer', path=target.as_posix(),
+                        offset=len(downloaded), version=info['version'])
+        assert response['ok'], response
+        chunk = base64.b64decode(response['data'], validate=True)
+        assert chunk, 'Absolute read made no progress'
+        downloaded.extend(chunk)
+    assert downloaded == payload
+    assert not call(op='begin', scope='computer', path=target.as_posix(), size=0, expected='missing')['ok']
+    cancelled = folder / 'cancelled.bin'
+    token = call(op='begin', scope='computer', path=cancelled.as_posix(), size=10, expected='missing')['token']
+    assert call(op='cancel', token=token)['ok']
+    assert not cancelled.exists() and not list(folder.glob('.desk-transfers-*'))
+    assert target.read_bytes() == payload, 'Conflict or cancellation changed an existing file'
+    print('Filesystem HTTPS access passed: environment capability, absolute browsing, outside-share upload/download, same-directory staging and cancellation.')
+
+
+def run(helper, secret, filesystem=False):
     with tempfile.TemporaryDirectory(prefix='desk-access-ci-') as temp:
-        directory = Path(temp)
+        directory = Path(temp).resolve()
+        base = private_port_base()
         device_id = '123456789'
         (directory / 'credentials').mkdir()
         (directory / 'apps.json').write_text('{"apps": [{"name": "Desktop"}]}')
-        settings = dict(port=48989, bind_address='127.0.0.1', address_family='ipv4',
+        settings = dict(port=base, bind_address='127.0.0.1', address_family='ipv4',
                         origin_web_ui_allowed='pc', upnp='disabled', sunshine_name='Desk CI',
                         file_apps=directory / 'apps.json', file_state=directory / 'state.json',
                         credentials_file=directory / 'state.json',
@@ -197,7 +288,8 @@ def run(helper, secret):
         conf = directory / 'sunshine.conf'
         conf.write_text(''.join(f'{k} = {v}\n' for k, v in settings.items()))
         env = dict(os.environ, DESK_ACCESS_PASSWORD=secret, DESK_DEVICE_ID=device_id,
-                   DESK_FILE_ROOT=base64.b64encode(str(directory / "shared").encode()).decode())
+                   DESK_FILE_ROOT=base64.b64encode(str(directory / "shared").encode()).decode(),
+                   DESK_FILE_ACCESS='computer' if filesystem else 'shared')
         with (directory / 'process.log').open('w') as output:
             process = subprocess.Popen([str(helper), str(conf)], cwd=helper.parent,
                                        env=env, stdout=output, stderr=subprocess.STDOUT)
@@ -205,7 +297,7 @@ def run(helper, secret):
                 for _ in range(60):
                     assert process.poll() is None, 'Host exited before password test'
                     try:
-                        info = request('serverinfo', {})
+                        info = request('serverinfo', {}, base=base)
                         break
                     except Exception:
                         time.sleep(1)
@@ -215,43 +307,50 @@ def run(helper, secret):
                 assert info.findtext('DeskAccessVersion') == '1'
                 assert secret.encode() not in ET.tostring(info)
                 key, cert, pem = identity(directory)
-                handshake(secrets.token_urlsafe(16), key, cert, pem, False)
+                handshake(secrets.token_urlsafe(16), key, cert, pem, False, base)
                 state_path = directory / 'state.json'
                 if state_path.exists():
                     assert not json.loads(state_path.read_text()).get('root', {}).get('named_devices')
-                server = handshake(secret, key, cert, pem, True)
+                server = handshake(secret, key, cert, pem, True, base)
                 context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 context.check_hostname = False
                 context.load_verify_locations(cadata=server.decode())
                 context.load_cert_chain(directory / 'client.pem', directory / 'client.key')
-                assert request('pair', dict(uniqueid='ci', phrase='pairchallenge'), context).findtext('paired') == '1'
+                assert request('pair', dict(uniqueid='ci', phrase='pairchallenge'), context, base=base).findtext('paired') == '1'
                 # A subsequent connection uses the saved certificate, no password.
-                assert request('serverinfo', dict(uniqueid='ci'), context).findtext('PairStatus') == '1'
-                test_file_transfer(directory, context, server)
+                assert request('serverinfo', dict(uniqueid='ci'), context, base=base).findtext('PairStatus') == '1'
+                test_file_transfer(directory, context, server, base, filesystem)
                 # Repeated cancellation must release pending sessions immediately.
                 for _ in range(3):
                     session = str(uuid.uuid4())
                     assert request('pair', dict(uniqueid=session, devicename='Desk CI', phrase='getservercert',
-                                               salt=secrets.token_hex(16), clientcert=pem.hex())).get('status_code') == '200'
-                    assert request('pair', dict(uniqueid=session, phrase='deskcancel')).get('status_code') == '200'
+                                               salt=secrets.token_hex(16), clientcert=pem.hex()), base=base).get('status_code') == '200'
+                    assert request('pair', dict(uniqueid=session, phrase='deskcancel'), base=base).get('status_code') == '200'
                 # The bounded limiter includes completed/cancelled attempts.
                 for _ in range(31):
                     session = str(uuid.uuid4())
                     result = request('pair', dict(uniqueid=session, devicename='Desk CI', phrase='getservercert',
-                                                 salt=secrets.token_hex(16), clientcert=pem.hex()))
+                                                 salt=secrets.token_hex(16), clientcert=pem.hex()), base=base)
                     if result.get('status_code') == '429':
                         break
                     assert result.get('status_code') == '200'
-                    request('pair', dict(uniqueid=session, phrase='deskcancel'))
+                    request('pair', dict(uniqueid=session, phrase='deskcancel'), base=base)
                 else:
                     raise AssertionError('Access attempt limiter did not activate')
             finally:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                logs = Path(__file__).resolve().parent.parent / 'build' / 'preview-smoke'
+                logs.mkdir(parents=True, exist_ok=True)
+                label = 'access-computer-' if filesystem else 'access-shared-'
+                for name in ('process.log', 'host.log'):
+                    source = directory / name
+                    if source.exists(): shutil.copyfile(source, logs / (label + name))
             assert secret not in (directory / 'process.log').read_text(errors='replace')
     print('Desk password tests passed: discovery metadata, wrong/right password, saved authorization, cancellation, attempt limit.')
 
@@ -259,8 +358,8 @@ def run(helper, secret):
 def test_parent_death(helper):
     """Kill an owning process without destructors; its host must release ports."""
     with tempfile.TemporaryDirectory(prefix='desk-lifecycle-ci-') as temp:
-        directory = Path(temp)
-        base = 59589
+        directory = Path(temp).resolve()
+        base = private_port_base()
         (directory / 'credentials').mkdir()
         (directory / 'apps.json').write_text('{"apps": [{"name": "Desktop"}]}')
         settings = dict(port=base, bind_address='127.0.0.1', address_family='ipv4',
@@ -374,7 +473,7 @@ def test_parent_death(helper):
 
 
 if __name__ == '__main__':
-    for secret in ('654321', 'Desk-Office!42', secrets.token_urlsafe(16)):
-        run(Path(sys.argv[1]).resolve(), secret)
+    for index, secret in enumerate(('654321', 'Desk-Office!42', secrets.token_urlsafe(16))):
+        run(Path(sys.argv[1]).resolve(), secret, filesystem=index == 1)
 
     test_parent_death(Path(sys.argv[1]).resolve())

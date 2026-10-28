@@ -95,7 +95,12 @@ void ClipboardBroker::execute(const QString& peer, const QJsonObject& r, Reply r
         m_Lease = token() + token();
         m_Expires = m_Clock.elapsed() + m_LeaseTimeoutMs;
         emit sessionChanged(true);
-        reply({ { "ok", true }, { "lease", m_Lease } });
+        // Identify the initial snapshot at open time. The first later exchange
+        // may already contain a genuinely new copy and must not be discarded.
+        auto offer = m_Local.manifest();
+        if (!offer["ok"].toBool())
+            offer = {};
+        reply({ { "ok", true }, { "lease", m_Lease }, { "offer", offer } });
         return;
     }
     if (peer != m_Owner || r["lease"].toString() != m_Lease || m_Lease.isEmpty()) {

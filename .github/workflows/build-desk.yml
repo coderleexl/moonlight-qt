@@ -274,7 +274,9 @@ jobs:
           path: |
             build/host-manager-test/results.txt
             build/file-transfer-test.noindex/results*.txt
+            build/cmake-build-file-transfer-access-test.noindex/results*.txt
             build/native-files-test.noindex/results*.txt
+            build/clipboard-agent-test.noindex/results*.txt
             build/sunshine-ccache-stats.txt
             build/preview-smoke/*.txt
             build/preview-smoke/*.log

@@ -1891,6 +1891,34 @@
         <source>Authorized devices can read and write this folder. Stop hosting before changing it. Files elsewhere are not shared.</source>
         <translation>已授权设备可读写此目录。修改前请停止共享服务，其他位置的文件不会开放。</translation>
     </message>
+    <message>
+        <source>All disks and folders</source>
+        <translation>全部磁盘和目录</translation>
+    </message>
+    <message>
+        <source>Authorized devices can browse disks and read or write folders accessible to your account. Stop hosting before changing this setting.</source>
+        <translation>已授权设备可浏览磁盘，并读写当前账户有权限访问的目录。更改此设置前请先停止服务。</translation>
+    </message>
+    <message>
+        <source>Authorized devices can read and write only the shared folder below.</source>
+        <translation>已授权设备只能读写下方共享目录。</translation>
+    </message>
+    <message>
+        <source>Default transfer folder</source>
+        <translation>默认传输目录</translation>
+    </message>
+    <message>
+        <source>File transfer access</source>
+        <translation>文件传输范围</translation>
+    </message>
+    <message>
+        <source>Shared folder only</source>
+        <translation>仅共享目录</translation>
+    </message>
+    <message>
+        <source>This folder opens when a file transfer connection starts. Stop hosting before changing it.</source>
+        <translation>文件传输连接建立后会先打开此目录。更改前请先停止服务。</translation>
+    </message>
 </context>
 <context>
     <name>SunshineManager</name>
@@ -2066,6 +2094,50 @@
         <source>File clipboard</source>
         <translation>文件剪贴板</translation>
     </message>
+    <message>
+        <source>Choose an accessible local folder.</source>
+        <translation>请选择可访问的本机文件夹。</translation>
+    </message>
+    <message>
+        <source>Choose an existing destination folder.</source>
+        <translation>请选择已存在的目标文件夹。</translation>
+    </message>
+    <message>
+        <source>Default folder</source>
+        <translation>默认目录</translation>
+    </message>
+    <message>
+        <source>Desktop</source>
+        <translation>桌面</translation>
+    </message>
+    <message>
+        <source>Documents</source>
+        <translation>文稿</translation>
+    </message>
+    <message>
+        <source>Downloads</source>
+        <translation>下载</translation>
+    </message>
+    <message>
+        <source>File system</source>
+        <translation>文件系统</translation>
+    </message>
+    <message>
+        <source>Home</source>
+        <translation>个人目录</translation>
+    </message>
+    <message>
+        <source>Shared folder</source>
+        <translation>共享目录</translation>
+    </message>
+    <message>
+        <source>The remote computer is not connected.</source>
+        <translation>尚未连接远端电脑。</translation>
+    </message>
+    <message>
+        <source>The transfer process ended. Copy or drag the files again to retry.</source>
+        <translation>传输进程已结束，请重新复制或拖动文件。</translation>
+    </message>
 </context>
 <context>
     <name>FileTransferWindow</name>
@@ -2165,6 +2237,102 @@
         <source>Data delivered</source>
         <translation>内容已传输</translation>
     </message>
+    <message>
+        <source>%1 active</source>
+        <translation>%1 项进行中</translation>
+    </message>
+    <message>
+        <source>%1 selected: %2</source>
+        <translation>已选择 %1 项：%2</translation>
+    </message>
+    <message>
+        <source>%1 tasks</source>
+        <translation>%1 个任务</translation>
+    </message>
+    <message>
+        <source>Choose download destination</source>
+        <translation>选择下载到本机的目录</translation>
+    </message>
+    <message>
+        <source>Choose folder</source>
+        <translation>选择目录</translation>
+    </message>
+    <message>
+        <source>Choose this folder</source>
+        <translation>选择此目录</translation>
+    </message>
+    <message>
+        <source>Choose upload destination</source>
+        <translation>选择上传到远端的目录</translation>
+    </message>
+    <message>
+        <source>Closing this window keeps transfers running</source>
+        <translation>关闭窗口后仍会继续传输</translation>
+    </message>
+    <message>
+        <source>Connected</source>
+        <translation>已连接</translation>
+    </message>
+    <message>
+        <source>Connecting…</source>
+        <translation>正在连接…</translation>
+    </message>
+    <message>
+        <source>Destination folder</source>
+        <translation>目标目录</translation>
+    </message>
+    <message>
+        <source>Destination: %1</source>
+        <translation>目标目录：%1</translation>
+    </message>
+    <message>
+        <source>Disks &amp; locations</source>
+        <translation>磁盘与常用目录</translation>
+    </message>
+    <message>
+        <source>Download %1 items</source>
+        <translation>下载 %1 项</translation>
+    </message>
+    <message>
+        <source>From: %1</source>
+        <translation>来源：%1</translation>
+    </message>
+    <message>
+        <source>Go to folder</source>
+        <translation>前往目录</translation>
+    </message>
+    <message>
+        <source>Loading folders…</source>
+        <translation>正在加载目录…</translation>
+    </message>
+    <message>
+        <source>No subfolders · choose this location below</source>
+        <translation>没有子文件夹 · 可在下方选择当前目录</translation>
+    </message>
+    <message>
+        <source>Open a folder, then choose this location</source>
+        <translation>进入目标文件夹后，选择当前目录</translation>
+    </message>
+    <message>
+        <source>Parent directory</source>
+        <translation>上级目录</translation>
+    </message>
+    <message>
+        <source>Press Enter to open this path before choosing it</source>
+        <translation>请按回车打开输入的路径，再选择此目录</translation>
+    </message>
+    <message>
+        <source>Show or hide transfers</source>
+        <translation>展开或收起传输队列</translation>
+    </message>
+    <message>
+        <source>This folder is unavailable</source>
+        <translation>无法访问此目录</translation>
+    </message>
+    <message>
+        <source>Upload %1 items</source>
+        <translation>上传 %1 项</translation>
+    </message>
 </context>
 <context>
     <name>FileTransferPane</name>
@@ -2219,6 +2387,86 @@
     <message>
         <source>Select files to upload to the folder on the right</source>
         <translation>选择文件，上传至右侧当前目录</translation>
+    </message>
+    <message>
+        <source>%1 items</source>
+        <translation>%1 项</translation>
+    </message>
+    <message>
+        <source>Change…</source>
+        <translation>更改…</translation>
+    </message>
+    <message>
+        <source>Choose folder</source>
+        <translation>选择目录</translation>
+    </message>
+    <message>
+        <source>Choose…</source>
+        <translation>选择…</translation>
+    </message>
+    <message>
+        <source>Clear selection</source>
+        <translation>取消选择</translation>
+    </message>
+    <message>
+        <source>Copy to: %1</source>
+        <translation>复制到：%1</translation>
+    </message>
+    <message>
+        <source>Disks &amp; locations</source>
+        <translation>磁盘与常用目录</translation>
+    </message>
+    <message>
+        <source>Double-click folders to open · drag files to copy</source>
+        <translation>双击打开文件夹 · 拖动文件以复制</translation>
+    </message>
+    <message>
+        <source>Download to: %1</source>
+        <translation>下载到：%1</translation>
+    </message>
+    <message>
+        <source>Download to…</source>
+        <translation>下载到…</translation>
+    </message>
+    <message>
+        <source>Folder path</source>
+        <translation>目录路径</translation>
+    </message>
+    <message>
+        <source>Go to folder</source>
+        <translation>前往目录</translation>
+    </message>
+    <message>
+        <source>Loading folders…</source>
+        <translation>正在加载目录…</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>名称</translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation>打开文件夹</translation>
+    </message>
+    <message>
+        <source>Select all</source>
+        <translation>全选</translation>
+    </message>
+    <message>
+        <source>Shared folder only · enable all disks on the host for more locations</source>
+        <translation>仅共享目录 · 在被控端开启全部磁盘可浏览更多位置</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>大小</translation>
+    </message>
+    <message>
+        <source>Upload to: %1</source>
+        <translation>上传到：%1</translation>
+    </message>
+    <message>
+        <source>Upload to…</source>
+        <translation>上传到…</translation>
     </message>
 </context>
     <context>

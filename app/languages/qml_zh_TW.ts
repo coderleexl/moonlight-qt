@@ -1891,6 +1891,34 @@
         <source>Authorized devices can read and write this folder. Stop hosting before changing it. Files elsewhere are not shared.</source>
         <translation>已授權设备可讀寫此目錄。修改前請停止共用服務，其他位置的檔案不会開放。</translation>
     </message>
+    <message>
+        <source>All disks and folders</source>
+        <translation>所有磁碟與目錄</translation>
+    </message>
+    <message>
+        <source>Authorized devices can browse disks and read or write folders accessible to your account. Stop hosting before changing this setting.</source>
+        <translation>已授權裝置可瀏覽磁碟，並讀寫目前帳號有權限存取的目錄。變更此設定前請先停止服務。</translation>
+    </message>
+    <message>
+        <source>Authorized devices can read and write only the shared folder below.</source>
+        <translation>已授權裝置只能讀寫下方共用目錄。</translation>
+    </message>
+    <message>
+        <source>Default transfer folder</source>
+        <translation>預設傳輸目錄</translation>
+    </message>
+    <message>
+        <source>File transfer access</source>
+        <translation>檔案傳輸範圍</translation>
+    </message>
+    <message>
+        <source>Shared folder only</source>
+        <translation>僅共用目錄</translation>
+    </message>
+    <message>
+        <source>This folder opens when a file transfer connection starts. Stop hosting before changing it.</source>
+        <translation>檔案傳輸連線建立後會先開啟此目錄。變更前請先停止服務。</translation>
+    </message>
 </context>
 <context>
     <name>SunshineManager</name>
@@ -2066,6 +2094,50 @@
         <source>File clipboard</source>
         <translation>檔案剪貼簿</translation>
     </message>
+    <message>
+        <source>Choose an accessible local folder.</source>
+        <translation>請選擇可存取的本機資料夾。</translation>
+    </message>
+    <message>
+        <source>Choose an existing destination folder.</source>
+        <translation>請選擇已存在的目標資料夾。</translation>
+    </message>
+    <message>
+        <source>Default folder</source>
+        <translation>預設目錄</translation>
+    </message>
+    <message>
+        <source>Desktop</source>
+        <translation>桌面</translation>
+    </message>
+    <message>
+        <source>Documents</source>
+        <translation>文件</translation>
+    </message>
+    <message>
+        <source>Downloads</source>
+        <translation>下載</translation>
+    </message>
+    <message>
+        <source>File system</source>
+        <translation>檔案系統</translation>
+    </message>
+    <message>
+        <source>Home</source>
+        <translation>個人目錄</translation>
+    </message>
+    <message>
+        <source>Shared folder</source>
+        <translation>共用目錄</translation>
+    </message>
+    <message>
+        <source>The remote computer is not connected.</source>
+        <translation>尚未連線至遠端電腦。</translation>
+    </message>
+    <message>
+        <source>The transfer process ended. Copy or drag the files again to retry.</source>
+        <translation>傳輸程序已結束，請重新複製或拖曳檔案。</translation>
+    </message>
 </context>
 <context>
     <name>FileTransferWindow</name>
@@ -2165,6 +2237,102 @@
         <source>Data delivered</source>
         <translation>內容已傳輸</translation>
     </message>
+    <message>
+        <source>%1 active</source>
+        <translation>%1 項進行中</translation>
+    </message>
+    <message>
+        <source>%1 selected: %2</source>
+        <translation>已選取 %1 項：%2</translation>
+    </message>
+    <message>
+        <source>%1 tasks</source>
+        <translation>%1 個工作</translation>
+    </message>
+    <message>
+        <source>Choose download destination</source>
+        <translation>選擇下載至本機的目錄</translation>
+    </message>
+    <message>
+        <source>Choose folder</source>
+        <translation>選擇目錄</translation>
+    </message>
+    <message>
+        <source>Choose this folder</source>
+        <translation>選擇此目錄</translation>
+    </message>
+    <message>
+        <source>Choose upload destination</source>
+        <translation>選擇上傳至遠端的目錄</translation>
+    </message>
+    <message>
+        <source>Closing this window keeps transfers running</source>
+        <translation>關閉視窗後仍會繼續傳輸</translation>
+    </message>
+    <message>
+        <source>Connected</source>
+        <translation>已連線</translation>
+    </message>
+    <message>
+        <source>Connecting…</source>
+        <translation>正在連線…</translation>
+    </message>
+    <message>
+        <source>Destination folder</source>
+        <translation>目標目錄</translation>
+    </message>
+    <message>
+        <source>Destination: %1</source>
+        <translation>目標目錄：%1</translation>
+    </message>
+    <message>
+        <source>Disks &amp; locations</source>
+        <translation>磁碟與常用目錄</translation>
+    </message>
+    <message>
+        <source>Download %1 items</source>
+        <translation>下載 %1 項</translation>
+    </message>
+    <message>
+        <source>From: %1</source>
+        <translation>來源：%1</translation>
+    </message>
+    <message>
+        <source>Go to folder</source>
+        <translation>前往目錄</translation>
+    </message>
+    <message>
+        <source>Loading folders…</source>
+        <translation>正在載入目錄…</translation>
+    </message>
+    <message>
+        <source>No subfolders · choose this location below</source>
+        <translation>沒有子資料夾 · 可在下方選擇目前目錄</translation>
+    </message>
+    <message>
+        <source>Open a folder, then choose this location</source>
+        <translation>進入目標資料夾後，選擇目前目錄</translation>
+    </message>
+    <message>
+        <source>Parent directory</source>
+        <translation>上層目錄</translation>
+    </message>
+    <message>
+        <source>Press Enter to open this path before choosing it</source>
+        <translation>請按 Enter 開啟輸入的路徑，再選擇此目錄</translation>
+    </message>
+    <message>
+        <source>Show or hide transfers</source>
+        <translation>展開或收合傳輸佇列</translation>
+    </message>
+    <message>
+        <source>This folder is unavailable</source>
+        <translation>無法存取此目錄</translation>
+    </message>
+    <message>
+        <source>Upload %1 items</source>
+        <translation>上傳 %1 項</translation>
+    </message>
 </context>
 <context>
     <name>FileTransferPane</name>
@@ -2219,6 +2387,86 @@
     <message>
         <source>Select files to upload to the folder on the right</source>
         <translation>選擇檔案，上傳至右侧当前目錄</translation>
+    </message>
+    <message>
+        <source>%1 items</source>
+        <translation>%1 個項目</translation>
+    </message>
+    <message>
+        <source>Change…</source>
+        <translation>變更…</translation>
+    </message>
+    <message>
+        <source>Choose folder</source>
+        <translation>選擇目錄</translation>
+    </message>
+    <message>
+        <source>Choose…</source>
+        <translation>選擇…</translation>
+    </message>
+    <message>
+        <source>Clear selection</source>
+        <translation>取消選取</translation>
+    </message>
+    <message>
+        <source>Copy to: %1</source>
+        <translation>複製到：%1</translation>
+    </message>
+    <message>
+        <source>Disks &amp; locations</source>
+        <translation>磁碟與常用目錄</translation>
+    </message>
+    <message>
+        <source>Double-click folders to open · drag files to copy</source>
+        <translation>按兩下開啟資料夾 · 拖曳檔案以複製</translation>
+    </message>
+    <message>
+        <source>Download to: %1</source>
+        <translation>下載到：%1</translation>
+    </message>
+    <message>
+        <source>Download to…</source>
+        <translation>下載到…</translation>
+    </message>
+    <message>
+        <source>Folder path</source>
+        <translation>目錄路徑</translation>
+    </message>
+    <message>
+        <source>Go to folder</source>
+        <translation>前往目錄</translation>
+    </message>
+    <message>
+        <source>Loading folders…</source>
+        <translation>正在載入目錄…</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>名稱</translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation>開啟資料夾</translation>
+    </message>
+    <message>
+        <source>Select all</source>
+        <translation>全選</translation>
+    </message>
+    <message>
+        <source>Shared folder only · enable all disks on the host for more locations</source>
+        <translation>僅共用目錄 · 在被控端開啟所有磁碟可瀏覽更多位置</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>大小</translation>
+    </message>
+    <message>
+        <source>Upload to: %1</source>
+        <translation>上傳到：%1</translation>
+    </message>
+    <message>
+        <source>Upload to…</source>
+        <translation>上傳到…</translation>
     </message>
 </context>
     <context>

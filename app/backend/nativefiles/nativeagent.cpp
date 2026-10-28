@@ -170,27 +170,121 @@ int NativeAgent::run(const QStringList& args)
         NativeTransport local;
         local.url = QUrl("http://127.0.0.1:" + QString::number(server.serverPort()) + "/");
         local.bearer = secret;
+        ClipboardPublication publication;
+        QElapsedTimer publicationClock;
+        publicationClock.start();
+        bool publishing = false, pendingLocalCopy = false, localCopyReady = true;
+        quint64 localCopyRevision = 0;
+        auto clipboardRevision = platform->clipboardRevision();
+        QTimer localCopySettle;
+        localCopySettle.setSingleShot(true);
+        localCopySettle.setInterval(200);
+        auto localClipboardChanged = [&] {
+            if (publishing)
+                return;
+#ifdef Q_OS_MACOS
+            const auto revision = platform->clipboardRevision();
+            if (revision == clipboardRevision)
+                return;
+            clipboardRevision = revision;
+#endif
+            if (broker.owner().isEmpty() || platform->ownsClipboard())
+                return;
+            ++localCopyRevision;
+            pendingLocalCopy = true;
+            publication.localCopy();
+            // Revoke the old source immediately, before a staged screenshot or
+            // rich clipboard finishes publishing its representations.
+            broker.publish({});
+#ifdef Q_OS_MACOS
+            platform->revoke();
+            localCopyReady = false;
+            localCopySettle.start();
+#else
+            broker.publish(platform->copiedFiles());
+#endif
+        };
+        QObject::connect(&localCopySettle, &QTimer::timeout, [&] {
+#ifdef Q_OS_MACOS
+            if (publishing) {
+                localCopySettle.start();
+                return;
+            }
+            localClipboardChanged();
+            if (localCopySettle.isActive() || broker.owner().isEmpty() || platform->ownsClipboard())
+                return;
+            const auto revision = clipboardRevision;
+            const auto files = platform->copiedFiles();
+            if (platform->clipboardRevision() != revision) {
+                localClipboardChanged();
+                return;
+            }
+            broker.publish(files);
+            localCopyReady = true;
+#endif
+        });
         QObject::connect(&broker, &ClipboardBroker::sessionChanged, [&](bool active) {
+            localCopySettle.stop();
+            publication = ClipboardPublication();
+            pendingLocalCopy = false;
+            localCopyReady = true;
+            // A new session observes only copies made after it opened. Never
+            // read or upload content already present in the host pasteboard.
+            clipboardRevision = platform->clipboardRevision();
             if (!active) {
-                platform->revoke();
+                publishing = true;
+                clipboardRevision = platform->revokeClipboard(clipboardRevision);
+                publishing = false;
                 clipboardLock.unlock();
             }
         });
-        QObject::connect(clipboard, &QClipboard::dataChanged, [&] {
-            if (!platform->ownsClipboard())
-                broker.publish(platform->copiedFiles());
-        });
-        QObject::connect(&broker, &ClipboardBroker::remoteChanged, [&](QJsonObject offer) {
-            if (offer.isEmpty()) {
-                platform->revoke();
+        QObject::connect(clipboard, &QClipboard::dataChanged, localClipboardChanged);
+        auto publishRemote = [&] {
+            if (publishing || broker.owner().isEmpty())
                 return;
+#ifdef Q_OS_MACOS
+            localClipboardChanged();
+#endif
+            const auto offer = broker.remoteOffer();
+            if (!publication.begin(offer["id"].toString(), publicationClock.elapsed(), pendingLocalCopy))
+                return;
+            publishing = true;
+            if (offer.isEmpty()) {
+                clipboardRevision = platform->revokeClipboard(clipboardRevision);
+                publication.succeeded();
+            } else {
+                const auto result = platform->publishIfUnchanged(
+                    offer, [local, id = offer["id"].toString()](const QString& file, qint64 offset, int length) {
+                        return local.call({ { "op", "client-read" }, { "offer", id }, { "file", file },
+                            { "offset", offset }, { "length", length } });
+                    }, clipboardRevision);
+                if (result.status == NativeClipboardPublication::Published)
+                    publication.succeeded();
+                else if (result.status == NativeClipboardPublication::Superseded)
+                    publication.localCopy();
+                else
+                    qWarning() << "Host OS clipboard publication failed; entries:" << offer["entries"].toArray().size();
+#ifdef Q_OS_MACOS
+                if (result.status != NativeClipboardPublication::Superseded)
+                    clipboardRevision = result.revision;
+#endif
             }
-            platform->publish(
-                offer, [local, id = offer["id"].toString()](const QString& file, qint64 offset, int length) {
-                    return local.call({ { "op", "client-read" }, { "offer", id }, { "file", file },
-                        { "offset", offset }, { "length", length } });
-                });
+            publishing = false;
+#ifdef Q_OS_MACOS
+            // An external copy made during publication must remain observable.
+            localClipboardChanged();
+#endif
+        };
+        QObject::connect(&broker, &ClipboardBroker::remoteChanged, [&](QJsonObject) { publishRemote(); });
+        QTimer clipboardWatch;
+        clipboardWatch.setInterval(200);
+        QObject::connect(&clipboardWatch, &QTimer::timeout, [&] {
+#ifdef Q_OS_MACOS
+            localClipboardChanged();
+#endif
+            publishRemote();
         });
+        clipboardWatch.start();
         server.handler = [&](QJsonObject request, BridgeHttp::Reply reply) {
             if (request["op"] == "client-read") {
                 broker.requestClient(request["offer"].toString(), request["file"].toString(),
@@ -202,7 +296,20 @@ int NativeAgent::run(const QStringList& args)
                 reply({ { "ok", false }, { "error", "Clipboard is in use by another Desk session" } });
                 return;
             }
-            broker.execute(peer, request, reply);
+            const bool exchange = request["op"] == "exchange";
+#ifdef Q_OS_MACOS
+            if (exchange)
+                localClipboardChanged();
+#endif
+            const auto sentRevision = localCopyRevision;
+            broker.execute(peer, request, [&, reply, exchange, sentRevision](QJsonObject result) {
+                // Do not acknowledge a copy until its stable selection has
+                // actually been included in a successful exchange response.
+                if (exchange && result["ok"].toBool() && sentRevision == localCopyRevision
+                    && localCopyReady)
+                    pendingLocalCopy = false;
+                reply(result);
+            });
         };
         std::printf("{\"port\":%u}\n", server.serverPort());
         std::fflush(stdout);
@@ -235,20 +342,46 @@ int NativeAgent::run(const QStringList& args)
     bool publishing = false;
     QJsonObject outgoing;
     bool changed = false, inflight = false;
+    quint64 localCopyRevision = 0;
     QJsonArray responses;
 #ifdef Q_OS_MACOS
     auto clipboardRevision = platform->clipboardRevision();
+    bool pendingLocalCopy = false;
+    qint64 localCopyReadyAt = 0;
 #endif
     auto localClipboardChanged = [&] {
+        // A callback during our own publication must not consume a newer copy
+        // made by another application. Observe it after the write completes.
+        if (publishing)
+            return;
 #ifdef Q_OS_MACOS
         const auto revision = platform->clipboardRevision();
-        if (revision == clipboardRevision)
+        if (platform->ownsClipboard()) {
+            clipboardRevision = revision;
             return;
-        clipboardRevision = revision;
-#endif
-        if (lease.isEmpty() || publishing || platform->ownsClipboard())
+        }
+        if (revision != clipboardRevision) {
+            clipboardRevision = revision;
+            ++localCopyRevision;
+            publication.localCopy();
+            pendingLocalCopy = true;
+            // Screenshot tools can append image representations without another
+            // changeCount increment. Let one watcher interval elapse before
+            // deciding whether this is an explicit file selection.
+            localCopyReadyAt = publicationClock.elapsed() + 200;
+            platform->revoke();
+        }
+        // Remember changes during the open handshake, but do not read their
+        // contents until a session exists. Never upload the startup clipboard.
+        if (lease.isEmpty() || !pendingLocalCopy || publicationClock.elapsed() < localCopyReadyAt)
             return;
+        pendingLocalCopy = false;
+#else
+        if (lease.isEmpty() || platform->ownsClipboard())
+            return;
+        ++localCopyRevision;
         publication.localCopy();
+#endif
         auto files = platform->copiedFiles();
         outgoing = files.isEmpty() ? QJsonObject() : local.publish(files);
         if (!outgoing.value("ok").toBool()) {
@@ -278,6 +411,9 @@ int NativeAgent::run(const QStringList& args)
     QObject::connect(&poll, &QTimer::timeout, &context, [&] {
         if (inflight || lease.isEmpty())
             return;
+#ifdef Q_OS_MACOS
+        localClipboardChanged();
+#endif
         inflight = true;
         QJsonObject request { { "op", "exchange" }, { "lease", lease }, { "responses", responses } };
         responses = {};
@@ -285,7 +421,9 @@ int NativeAgent::run(const QStringList& args)
             request["offer"] = outgoing;
             changed = false;
         }
-        remote.send(&context, request, [&](QJsonObject result) {
+        const auto sentRevision = localCopyRevision;
+        const bool sentLocalCopy = request.contains("offer");
+        remote.send(&context, request, [&, sentRevision, sentLocalCopy](QJsonObject result) {
             inflight = false;
             if (!result["ok"].toBool()) {
                 activity.notice(result["error"].toString());
@@ -295,37 +433,71 @@ int NativeAgent::run(const QStringList& args)
             }
             const auto offer = result.value("offer").toObject();
             const auto id = offer.value("id").toString();
-            if (publication.begin(id, publicationClock.elapsed())) {
+#ifdef Q_OS_MACOS
+            // A response can arrive before the 200 ms clipboard watcher runs.
+            // Observe the current pasteboard before deciding whether to write.
+            localClipboardChanged();
+#endif
+            const bool localCopyTakesPriority = sentLocalCopy || changed || localCopyRevision != sentRevision
+#ifdef Q_OS_MACOS
+                || pendingLocalCopy
+#endif
+                ;
+            if (publication.begin(id, publicationClock.elapsed(), localCopyTakesPriority)) {
                 publishing = true;
                 if (offer.isEmpty()) {
+#ifdef Q_OS_MACOS
+                    clipboardRevision = platform->revokeClipboard(clipboardRevision);
+#else
                     platform->revoke();
+#endif
                     publication.succeeded();
                 } else if (!NativeOfferStore::validManifest(offer)) {
+#ifdef Q_OS_MACOS
+                    clipboardRevision = platform->revokeClipboard(clipboardRevision);
+#else
                     platform->revoke();
+#endif
                     publication.rejected();
                     qWarning() << "Remote clipboard file manifest rejected; entries:" << offer["entries"].toArray().size();
                     activity.notice("The remote file list is invalid or exceeds the supported limits");
-                } else if (!platform->publish(offer,
+                } else {
+                    const auto write = platform->publishIfUnchanged(offer,
                         activity.track(
                             offer,
                             [remote, lease, id](const QString& file, qint64 offset, int length) {
                                 return remote.call({ { "op", "read" }, { "lease", lease }, { "offer", id },
                                     { "file", file }, { "offset", offset }, { "length", length } });
                             },
-                            false))) {
-                    platform->revoke();
-                    qWarning() << "OS clipboard publication failed; entries:" << offer["entries"].toArray().size();
-                    activity.notice("Cannot publish the remote file selection to the system clipboard");
-                } else {
-                    publication.succeeded();
-                    activity.clearNotice();
-                    qInfo() << "Remote clipboard files published; entries:" << offer["entries"].toArray().size();
+                            false),
+#ifdef Q_OS_MACOS
+                        clipboardRevision
+#else
+                        platform->clipboardRevision()
+#endif
+                    );
+#ifdef Q_OS_MACOS
+                    // Only acknowledge the revision generated by this write.
+                    // Sampling the current count here could swallow a local
+                    // screenshot copied while the write was in progress.
+                    if (write.status != NativeClipboardPublication::Superseded)
+                        clipboardRevision = write.revision;
+#endif
+                    if (write.status == NativeClipboardPublication::Superseded) {
+                        publication.begin(id, publicationClock.elapsed(), true);
+                        activity.clearNotice();
+                    } else if (write.status == NativeClipboardPublication::Failed) {
+                        qWarning() << "OS clipboard publication failed; entries:" << offer["entries"].toArray().size();
+                        activity.notice("Cannot publish the remote file selection to the system clipboard");
+                    } else {
+                        publication.succeeded();
+                        activity.clearNotice();
+                        qInfo() << "Remote clipboard files published; entries:" << offer["entries"].toArray().size();
+                    }
                 }
                 publishing = false;
 #ifdef Q_OS_MACOS
-                // Our own clear/write (including a failed write) isn't a user
-                // copy and must not cancel the scheduled publication retry.
-                clipboardRevision = platform->clipboardRevision();
+                localClipboardChanged();
 #endif
             }
             for (auto v : result["requests"].toArray()) {
@@ -344,8 +516,14 @@ int NativeAgent::run(const QStringList& args)
         if (lease.isEmpty()) {
             activity.notice(result["error"].toString());
             QCoreApplication::quit();
-        } else
+        } else {
+            // Establish the baseline from the open response, never from the
+            // first poll: a peer may copy a new file immediately after opening.
+            // Older hosts start with an empty selection and omit this field.
+            publication.begin(result.value("offer").toObject().value("id").toString(),
+                publicationClock.elapsed(), true);
             poll.start();
+        }
     });
     QObject::connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, [&] {
         platform->revoke();

@@ -114,14 +114,16 @@ macOS 需授予屏幕录制与辅助功能权限。Linux 包含 X11、Wayland/Po
 
 CI 验证安装、启动和授权协议，不代替真实 GPU 串流、锁屏、UAC、手柄和显示权限测试。
 
-### 局域网文件传输（6.3.0）
+### 局域网文件传输
 
-- 串流顶部悬浮栏点击“传文件”，或在设备的“管理 → 文件传输”打开双栏窗口。左侧浏览本机，右侧浏览远端共享目录。
-- 勾选多个文件或文件夹后点击上传／下载，也可在两栏之间拖拽。操作为复制，保留源文件；支持递归文件夹、空文件、中文文件名和空目录。
+- 串流顶部悬浮栏点击“传文件”，或在设备的“管理 → 文件传输”打开双栏窗口。左侧浏览本机，右侧浏览远端；两栏宽度可以拖动调整，长文件名换行显示，悬停可查看完整名称。传输队列可收起，让目录列表占据更多空间。
+- 勾选文件或文件夹后点击上传／下载，在独立的目录选择器中选择目标位置、确认来源及目标后开始复制。选择器支持磁盘与常用目录、输入路径、返回上级和新建文件夹，取消不会改变已选的来源文件。也可在两栏之间或向对面文件夹拖拽，拖放位置就是目标目录。
+- 勾选框用于增减选择，单击文件名切换为单选，Ctrl／Command 加单击用于多选，Shift 用于连续选择；按钮旁显示已选择数量。进入其他目录后清空选择，同目录刷新保留仍存在的已选项目。操作为复制，保留源文件；支持递归文件夹、空文件、中文文件名和空目录。
 - 同名文件可覆盖、跳过或保留两份。任务队列显示进度、速度和错误，保留最近 100 条已结束记录，支持取消、重新尝试；重试从头开始，暂不支持断点续传。
 - 默认限速 4 MB/s，可选择 1／4／10 MB/s 或不限速，减少与桌面串流争用带宽。关闭正在传输的窗口后任务继续，点击入口可重新打开；结束 Desk 主机服务会中断相关传输。
-- 被控端默认只共享“下载/Desk”，在“本机”页停止服务后可更改路径。已授权设备可读写该目录，其他路径、符号链接及 Windows 重解析点不开放。两端均需升级，原版 Sunshine／旧版 Desk 会提示不支持。
-- 复用主机的 HTTPS 端口和已配对客户端证书，客户端固定校验主机证书；仅允许本机／私有网络地址。分块传输限制内存，上传校验 SHA-256，完整文件才提交至目标位置。取消或失败会丢弃临时文件，不直接覆盖原文件。
+- 被控端默认只共享“下载/Desk”。如需浏览远端各磁盘，先更新被控端至包含文件协议 v2 的版本，在“本机”页停止服务，将“文件传输范围”设为“全部磁盘和目录”后重新启动服务。Windows 可选择各盘符，macOS/Linux 可从文件系统根目录进入其他位置；读写范围受被控端当前账户权限限制，符号链接及 Windows 重解析点不开放。默认传输目录可单独设置。
+- 新客户端会探测主机能力，连接只支持旧文件协议的主机时仍使用共享目录模式；原版 Sunshine 或不支持文件传输的版本会提示更新。仅更新控制端无法让旧被控端开放各磁盘。
+- 复用主机的 HTTPS 端口和已配对客户端证书，客户端固定校验主机证书；仅允许本机／私有网络地址。分块传输限制内存，上传校验 SHA-256，完整文件才提交至目标位置。全部磁盘模式的上传临时目录创建在目标文件夹所在磁盘，避免跨盘提交失败；取消或失败会丢弃临时文件，不直接覆盖原文件。
 
 文件窗口以独立进程运行，避免 SDL 串流循环阻塞 Qt 界面；打开时释放远程输入，若当前全屏则先切换为窗口。6.3.0 支持目录浏览与复制；系统文件剪贴板与原生拖拽在下述 6.4.0 扩展中提供。暂不提供删除远端文件或剪切移动。
 
@@ -133,6 +135,9 @@ CI 验证安装、启动和授权协议，不代替真实 GPU 串流、锁屏、
 - 从 Desk 文件列表拖出窗口，可投放到本机桌面或文件管理器目录。远端文件在目标请求内容时分块下载，保存到实际投放位置；不包含从串流画面内部直接拖出图标。
 - 串流期间同步文件剪贴板：一端复制文件或目录，另一端在系统文件管理器粘贴。断开会话后撤销文件访问；每个登录用户同一时间只启用一个 Desk 剪贴板会话。
 - 接收端写入系统剪贴板失败时，间隔一秒最多尝试三次；新的本地复制会停止当前重试。macOS 后台辅助进程主动检查剪贴板变化，错误日志区分文件清单校验失败和系统剪贴板写入失败。
+- macOS 图片及微信富文本剪贴板即使附带临时文件地址，也不会按文件选择同步，保留聊天应用中的粘贴格式。新的本机复制优先于尚未完成的同步请求，过期返回不会覆盖本机剪贴板。
+- macOS 剪贴板会话启动时只建立基线，不自动上传连接前的内容，也不把连接握手返回的初始快照写回本机。连接过程中发生的新复制会保留到会话就绪；发布前再次检查剪贴板版本，写入期间的本机新复制不会被当作 Desk 自身操作忽略。文件复制请在连接建立后进行；此通道仍只同步文件，不提供跨端图片剪贴板。
+- macOS 粘贴监视器只检查与待粘贴文件名匹配的目标，跳过相册库及应用数据目录；本机重新复制后释放旧的远端文件提供器。原生文件粘贴不支持相册库或应用数据目录。
 - 清空文件选择时保留空 JSON 清单，避免复制文字或图片后产生非法清单并退出剪贴板通道。文件窗口各请求使用独立连接，避免复用主机即将关闭的连接而中断分块传输。
 - 剪贴板只授权用户明确选中的文件，不改变原有共享目录边界。符号链接和 Windows 重解析点不开放；重新复制或来源变化会使旧清单失效。
 - macOS 使用原生文件承诺实现拖出；文件粘贴通过带随机标记的临时占位项识别目标后写入。粘贴目录合并遇到已有子文件时会停止，不静默覆盖。
@@ -229,7 +234,7 @@ Hosting for Moonlight's Debian and L4T package repositories is graciously provid
 * [create-dmg](https://github.com/sindresorhus/create-dmg) (only if building DMGs for use on non-development Macs)
 
 ### Linux/Unix Build Requirements
-* Qt 6 is recommended, but Qt 5.12 or later is also supported (replace `qmake6` with `qmake` when using Qt 5).
+* Qt 6 is recommended, but Qt 5.13 or later is also supported (replace `qmake6` with `qmake` when using Qt 5). The file transfer split view requires Qt Quick Controls 2.13.
 * GCC or Clang
 * FFmpeg 4.0 or later
 * Install the required packages:
@@ -261,7 +266,7 @@ for different architectures, which handle building deps and extra linking for yo
 ### Build Setup Steps
 1. Install the latest Qt SDK (and optionally, the Qt Creator IDE) from https://www.qt.io/download
     * You can install Qt via Homebrew on macOS, but you will need to use `brew install qt --with-debug` to be able to create debug builds of Moonlight.
-    * You may also use your Linux distro's package manager for the Qt SDK as long as the packages are Qt 5.12 or later.
+    * You may also use your Linux distro's package manager for the Qt SDK as long as the packages are Qt 5.13 or later.
     * This step is not required for building on Steam Link, because the Steam Link SDK includes Qt 5.14.
 2. Download submodules and dependencies
     * Run `git submodule update --init --recursive` from within `moonlight-qt/`.

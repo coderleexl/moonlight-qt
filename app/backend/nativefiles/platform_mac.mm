@@ -558,20 +558,27 @@ QJsonObject nativeImageClipboardProbe(const QString& file)
             // Qt applications also publish legacy flavor names containing
             // underscores, which NSPasteboardItem refuses to create.
             PasteboardRef legacy = nullptr;
-            PasteboardCreate((__bridge CFStringRef)board.name, &legacy);
-            PasteboardClear(legacy);
+            const auto createStatus = PasteboardCreate((__bridge CFStringRef)board.name, &legacy);
+            const auto clearStatus = legacy ? PasteboardClear(legacy) : createStatus;
             NSData* richData = [@"opaque application representation" dataUsingEncoding:NSUTF8StringEncoding];
             NSData* urlData = [url.absoluteString dataUsingEncoding:NSUTF8StringEncoding];
-            PasteboardPutItemFlavor(legacy, (PasteboardItemID)1, (__bridge CFStringRef)type,
-                (__bridge CFDataRef)richData, 0);
-            PasteboardPutItemFlavor(legacy, (PasteboardItemID)1, (__bridge CFStringRef)NSPasteboardTypeFileURL,
-                (__bridge CFDataRef)urlData, 0);
-            CFRelease(legacy);
+            const auto richStatus = legacy ? PasteboardPutItemFlavor(legacy, (PasteboardItemID)1,
+                (__bridge CFStringRef)type, (__bridge CFDataRef)richData, 0) : createStatus;
+            const auto fileStatus = legacy ? PasteboardPutItemFlavor(legacy, (PasteboardItemID)1,
+                (__bridge CFStringRef)NSPasteboardTypeFileURL, (__bridge CFDataRef)urlData, 0) : createStatus;
+            if (legacy) CFRelease(legacy);
+            NSArray* declaredTypes = [board.types copy];
+            const auto typesBefore = qt([declaredTypes componentsJoinedByString:@", "]);
+            const bool declaredBefore = [declaredTypes containsObject:type];
             const auto before = board.changeCount;
             const auto count = platform.copiedFiles().size();
             platform.revoke();
             richCopies.append(QJsonObject { { "files", count },
                 { "unchanged", board.changeCount == before }, { "declared", [board.types containsObject:type] == YES },
+                { "declaredBefore", declaredBefore }, { "typesBefore", typesBefore },
+                { "typesAfter", qt([board.types componentsJoinedByString:@", "]) },
+                { "createStatus", int(createStatus) }, { "clearStatus", int(clearStatus) },
+                { "richStatus", int(richStatus) }, { "fileStatus", int(fileStatus) },
                 { "type", qt(type) } });
         }
         result["richCopies"] = richCopies;

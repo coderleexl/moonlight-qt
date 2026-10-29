@@ -186,9 +186,13 @@ private slots:
         QCOMPARE(cases.size(), 5);
         for (const auto value : cases) {
             const auto entry = value.toObject();
-            QVERIFY(entry["declared"].toBool());
-            QVERIFY2(entry["files"].toInt() == 0, qPrintable(entry["type"].toString()));
-            QVERIFY(entry["unchanged"].toBool());
+            const auto diagnostic = QJsonDocument(entry).toJson(QJsonDocument::Compact);
+            QVERIFY2(entry["createStatus"].toInt() == 0 && entry["clearStatus"].toInt() == 0
+                && entry["richStatus"].toInt() == 0 && entry["fileStatus"].toInt() == 0, diagnostic.constData());
+            QVERIFY2(entry["declaredBefore"].toBool(), diagnostic.constData());
+            QVERIFY2(entry["declared"].toBool(), diagnostic.constData());
+            QVERIFY2(entry["files"].toInt() == 0, diagnostic.constData());
+            QVERIFY2(entry["unchanged"].toBool(), diagnostic.constData());
         }
     }
     void nativeClipboardReadsOnlyExplicitFiles() {
